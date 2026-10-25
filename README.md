@@ -18,7 +18,7 @@ bash scripts/run.sh archive    # 로그와 평가를 docs/evidence/run_arc1로(�
 ```
 
 - ARC-AGI-2는 `RUN=arc2 CONFIG=configs/arc2.json bash scripts/run.sh start`로 띄운다(status, stop, eval도 같은 `RUN`).
-- 학습 길이는 50k 에폭이다. quick 평가가 포화하면 `run.sh stop`으로 멈추고, `CKPT=runs/<run>/step_N.pt bash scripts/run.sh eval`로 최종 평가를 돌린다.
+- 학습 길이는 50k 에폭이다. 사용자가 멈추라고 하면 `run.sh stop`으로 멈추고, `CKPT=runs/<run>/step_N.pt bash scripts/run.sh eval`로 최종 평가를 돌린다.
 - 설정은 `EXTRA`로 바꾼다. 예: `EXTRA="epochs=30000"`. 시간 제한은 `MAX_HOURS=72`.
 - 학습 중 평가:
   - 1천 에폭마다 원본 판 1개(`quick`, 약 15초)

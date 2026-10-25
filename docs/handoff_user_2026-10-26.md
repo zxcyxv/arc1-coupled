@@ -25,10 +25,8 @@ Claude에게 줄 문서는 [handoff_agent_2026-10-26.md](handoff_agent_2026-10-2
 
 ## 3. 학습 중 (하루에 몇 번)
 
-- [ ] 상태 확인: `bash scripts/run.sh status`를 직접 보거나 Claude에게 묻는다(s/step, ETA, GPU, 디스크, 평가).
-- [ ] **멈출 시점 결정(사용자 몫):** vote 평가가 5천 에폭(ARC-1 약 3.5시간)마다 나온다.
-  - 기준을 미리 정해 두면 좋다. 예: pass@2와 원본 판 exact가 vote 평가 두 번 연속 오르지 않으면 멈춘다.
-  - 멈춘 시점과 근거를 적어 둔다. 시험 세트 곡선으로 고른 것이라 논문에 써야 한다.
+- [ ] 상태 확인: `bash scripts/run.sh status`를 직접 보거나 Claude에게 묻는다(s/step, ETA, GPU, 디스크, 평가). vote 평가는 5천 에폭(ARC-1 약 3.5시간)마다 나온다.
+- [ ] **멈추기:** 사용자가 멈추라고 하면 멈춘다.
 - [ ] 하루에 한 번 이상 결과를 올린다(Claude에게 "archive하고 푸시해").
 - [ ] 문제가 생기면 Claude에게 증상과 `status` 출력을 그대로 준다.
 - [ ] 레시피에서 벗어나는 조치는 사용자가 정한다. 예: NaN이 반복될 때 lr을 낮추거나 clip을 켜는 것.
