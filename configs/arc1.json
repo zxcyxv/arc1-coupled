@@ -1,0 +1,31 @@
+{
+  "_comment": "ARC-AGI-1 main run (docs/decisions.md): TRM split and augmentation (data/arc1_trm.npz), TRM optimisation (AdamATan2 0.9/0.95, lr 1e-4 after 2000 warmup steps, wd 0.1, EMA 0.999, global batch 768), loops 16 without ACT (all lanes replaced together), 8 blocks per segment with the last 2 backpropagated (10-25: time), TRM lm loss, no gradient clipping, Gamma term on (frames 8). 50k epochs = int(50000 x 960 x 4.1458 / 768) = 259,113 steps; stop earlier by hand (scripts/run.sh stop) once the quick evaluations saturate, then scripts/run.sh eval.",
+  "model": {
+    "canvas": 30,
+    "d": 512,
+    "heads": 8,
+    "blocks": 8,
+    "grad_blocks": 2,
+    "frames": 8
+  },
+  "global_batch_size": 768,
+  "grad_accum": 2,
+  "loops": 16,
+  "epochs": 50000,
+  "lr": 0.0001,
+  "lr_warmup_steps": 2000,
+  "beta1": 0.9,
+  "beta2": 0.95,
+  "weight_decay": 0.1,
+  "ema_rate": 0.999,
+  "quick_eval_epochs": 1000,
+  "vote_eval_epochs": 5000,
+  "vote_versions": 8,
+  "final_eval": true,
+  "final_versions": "all",
+  "save_every_steps": 2048,
+  "keep_last": 2,
+  "log_every": 50,
+  "seed": 0,
+  "compile": true
+}
