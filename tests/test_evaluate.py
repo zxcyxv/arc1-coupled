@@ -54,6 +54,9 @@ class EndToEnd(unittest.TestCase):
         self.assertEqual(metrics['identity_n'], n_tests)
         self.assertEqual(len(recs), 2 * n_tests)
         self.assertTrue(all(0.0 <= metrics[f'pass@{k}'] <= 1.0 for k in (1, 2)))
+        self.assertTrue(all(0.0 <= metrics[k] <= 1.0 for k in ('identity_cell', 'identity_cell_eos', 'view_cell',
+                                                                 'view_cell_eos')))
+        self.assertEqual(len(recs[0]), 10)
         self.assertTrue(all(r[3] in grids for r in recs))
 
 

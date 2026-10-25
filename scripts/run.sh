@@ -128,7 +128,8 @@ if (d / 'eval.jsonl').exists():
     for l in open(d / 'eval.jsonl').readlines()[-4:]:
         m = json.loads(l)
         print(f"eval {m['kind']} step {m['step']:,} epoch {m['epoch']:.0f}: identity {m['identity_exact']}/{m['identity_n']} "
-              f"pass@1 {m['pass@1']:.4f} pass@2 {m['pass@2']:.4f} ({m['seconds']:.0f}s)")
+              f"pass@1 {m['pass@1']:.4f} pass@2 {m['pass@2']:.4f} cell {m.get('identity_cell', float('nan')):.4f} "
+              f"cell_eos {m.get('identity_cell_eos', float('nan')):.4f} ({m['seconds']:.0f}s)")
 EOF
   nvidia-smi --query-gpu=index,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit,clocks.sm,clocks_event_reasons.active \
     --format=csv,noheader 2>/dev/null || nvidia-smi --query-gpu=index,utilization.gpu,memory.used,temperature.gpu,power.draw --format=csv,noheader

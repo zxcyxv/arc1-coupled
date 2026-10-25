@@ -92,6 +92,10 @@ def run(model, store, versions, lanes, segments, rank=0, ws=1, device=torch.devi
         lab = y != PAD
         pred = logits.argmax(-1)
         exact = ((pred == y) | ~lab).all(-1).cpu().numpy()
+        colour = lab & (y >= 2) & (y <= 11)                           # the true grid's cells (EOS excluded)
+        right = pred == y
+        cells = torch.stack([(right & colour).sum(-1), colour.sum(-1), (right & lab).sum(-1), lab.sum(-1)], -1)
+        cells = cells.cpu().numpy()
         lp = torch.gather(log_stablemax(logits.double()), -1, y[..., None]).squeeze(-1)
         logp = (torch.where(lab, lp, 0).sum(-1) / lab.sum(-1).clamp_min(1)).cpu().numpy()
         pred = pred.cpu().numpy()
@@ -110,7 +114,7 @@ def run(model, store, versions, lanes, segments, rank=0, ws=1, device=torch.devi
             h = grid_hash(np.ascontiguousarray(g))
             grids.setdefault(h, g)
             de, dl, n = score.get(gid, [0.0, 0.0, 0])
-            recs.append((t, j, v, h, de / max(n, 1), dl / max(n, 1)))
+            recs.append((t, j, v, h, de / max(n, 1), dl / max(n, 1), *(int(c) for c in cells[lane])))
         if rank == 0 and (b // ws) % 200 == 0:
             log(f'[EVAL] micro-batch {b + 1}/{len(plan)} ({time.time() - t0:.0f}s)')
     model.train(was)
@@ -126,11 +130,19 @@ def run(model, store, versions, lanes, segments, rank=0, ws=1, device=torch.devi
 
 def score_records(store, recs, versions):
     """pass@k (TRM: per task the fraction of its test inputs whose answer is in the top k, mean over tasks), the
-    original version's exactness, and the mean exactness over all evaluated views."""
+    original version's exactness, the mean exactness over all evaluated views, and cell accuracies (inside the true
+    grid, and with its EOS cells) of the original version and of all views. recs: (t, j, v, hash, demo exact, demo
+    log-probability[, right grid cells, grid cells, right labelled cells, labelled cells])."""
     by_input = {}
     view_ok, ident = [], {}
     answers = {}
-    for t, j, v, h, de, dl in recs:
+    cell = {'identity': np.zeros(4), 'view': np.zeros(4)}
+    for r in recs:
+        t, j, v, h, de, dl = r[:6]
+        if len(r) > 6:
+            cell['view'] += r[6:10]
+            if v == 0:
+                cell['identity'] += r[6:10]
         if (t, j) not in answers:
             answers[(t, j)] = grid_hash(store.answer(t, j))
         ok = h == answers[(t, j)]
@@ -155,13 +167,17 @@ def score_records(store, recs, versions):
                                         for t in store.eval_tasks) / n_tasks) if ident else float('nan'),
                view_exact=float(np.mean(view_ok)) if view_ok else float('nan'),
                versions=len(versions), inputs=len(answers))
+    for k, c in cell.items():
+        out[f'{k}_cell'] = float(c[0] / c[1]) if c[1] else float('nan')
+        out[f'{k}_cell_eos'] = float(c[2] / c[3]) if c[3] else float('nan')
     return out
 
 
 def submission(store, recs, grids, k=2):
     """ARC Prize format: {task: [{'attempt_1': grid, 'attempt_2': grid}, ...]} from the same ranking as pass@k."""
     by_input = {}
-    for t, j, v, h, de, dl in recs:
+    for r in recs:
+        t, j, v, h, de, dl = r[:6]
         c = by_input.setdefault((t, j), {}).setdefault(h, [0, 0.0, 0.0])
         c[0] += 1
         c[1] += de

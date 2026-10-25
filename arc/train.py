@@ -313,7 +313,8 @@ def main(argv=None):
                 f.write(json.dumps(m) + '\n')
             log(f"[EVAL] {kind} step {state['step']} epoch {m['epoch']:.0f}: identity {m['identity_exact']}/"
                 f"{m['identity_n']} task-weighted {m['identity_exact_task']:.4f} view {m['view_exact']:.4f} "
-                f"pass@1 {m['pass@1']:.4f} pass@2 {m['pass@2']:.4f} ({m['seconds']:.0f}s)")
+                f"pass@1 {m['pass@1']:.4f} pass@2 {m['pass@2']:.4f} cell {m['identity_cell']:.4f} "
+                f"cell_eos {m['identity_cell_eos']:.4f} ({m['seconds']:.0f}s)")
             return res
 
     try:
