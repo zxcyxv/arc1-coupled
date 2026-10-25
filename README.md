@@ -1,7 +1,7 @@
 # arc1-coupled
 
 coupled 모델(bands 지각 + 과제별 lasso 규칙 헤드)을 ARC-AGI-1에서 TRM과 같은 조건으로 학습하는 전용 레포다.
-결정 사항과 근거는 [docs/decisions.md](docs/decisions.md)에 있고, 내일 할 일의 순서와 대응 체크리스트는 [docs/handoff_2026-10-26.md](docs/handoff_2026-10-26.md)에 있다.
+결정 사항과 근거는 [docs/decisions.md](docs/decisions.md)에 있다. 10-26 인수인계는 두 문서로 나뉜다. 에이전트용 [docs/handoff_agent_2026-10-26.md](docs/handoff_agent_2026-10-26.md)는 맥락, 상태, 순서, 대응을 담고, 사용자용 [docs/handoff_user_2026-10-26.md](docs/handoff_user_2026-10-26.md)는 직접 할 일의 체크리스트다.
 모델은 `zxcyxv/something` 커밋 `093911e`의 `lt/coupled.py`와 bands 경로를 옮긴 것이고, 같은 seed에서 초기 가중치와 출력이 같다.
 
 ## 인스턴스에서 (4×H100 SXM, on-demand)
