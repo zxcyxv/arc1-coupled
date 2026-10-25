@@ -28,6 +28,8 @@ canvas coordinates), all / sqrt(F) so sum_k |kappa_k|^2 <= 1; r(o) = Theta phi(o
 lasso over (Theta, Gamma), one proximal step on each block in turn. Gamma has no colour index.
 
 A segment runs `blocks` blocks from the carry, the last `grad_blocks` with gradients, and returns the detached carry.
+With fused_bands (CUDA, FP32 forward) the trace update runs as one Triton kernel each way (arc/bands_kernel.py): the
+same formulas with less memory traffic.
 """
 import math
 from dataclasses import dataclass
@@ -35,6 +37,11 @@ from dataclasses import dataclass
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+try:
+    from .bands_kernel import bands_trace
+except ImportError:                                      # no Triton: the PyTorch path only
+    bands_trace = None
 
 VOCAB = 13
 UNKNOWN, PAD, EOS = 0, 1, 12                         # colours are 2..11
@@ -59,6 +66,9 @@ class ModelConfig:
     frames: int = 0                   # K > 0: Gamma over K softmax frames + the grid histogram
     frame_dim: int = 32               # q/k width of a frame (frame_dim / 4 frequencies per axis)
     frame_bf16: bool = True           # with amp on CUDA: the frames' softmax read as BF16 flash attention
+    trace_dtype: str = 'float32'      # E_K, E_V between blocks with an FP32 forward: float32, bfloat16 or float16;
+                                      # every update is computed in FP32
+    fused_bands: bool = False         # CUDA FP32: the trace update as one Triton kernel each way (arc/bands_kernel.py)
     amp: bool = True                  # BF16 autocast for the projections and the FFN on CUDA
     dtype: str = 'float32'            # float64 for tests
 
@@ -74,6 +84,8 @@ class ModelConfig:
             raise ValueError('0 < outer_eta < 1')
         if self.frames and self.frame_dim % 4:
             raise ValueError('frame_dim must be a multiple of 4')
+        if self.trace_dtype not in ('float32', 'bfloat16', 'float16'):
+            raise ValueError('trace_dtype: float32, bfloat16 or float16')
 
 
 def trunc_normal_(tensor, std=1.0, lower=-2.0, upper=2.0):
@@ -204,20 +216,24 @@ class Coupled(nn.Module):
             qr, kr = self.rope(unit(q.to(dtype)), tables), self.rope(unit(k.to(dtype)), tables)
             v = v.to(dtype)
             B, H, T, D = v.shape
-            zr, zi, gamma, ar, ai, br, bi = (x.to(dtype)[None, :, None, :, None] for x in self.block.bands())
-            ek_re, ek_im = ek.to(dtype).reshape(B, H, T, 2, cfg.bands, D).unbind(3)
-            ev_re, ev_im = ev.to(dtype).reshape(B, H, T, 2, cfg.bands, D).unbind(3)
-            ek_re, ek_im = zr * ek_re - zi * ek_im + gamma * kr.unsqueeze(3), zr * ek_im + zi * ek_re   # this block in
-            dv_re, dv_im = zr * ev_re - zi * ev_im, zr * ev_im + zi * ev_re                              # this block out
-            k_mix = (ar * ek_re - ai * ek_im).sum(3)
-            v_mix = (br * dv_re - bi * dv_im).sum(3)
+            store = getattr(torch, cfg.trace_dtype) if dtype == torch.float32 else dtype
+            if cfg.fused_bands and v.is_cuda and dtype == torch.float32:
+                ek, ev, k_mix, v_mix = bands_trace(kr, v, ek, ev, torch.stack(self.block.bands()), store)
+            else:
+                zr, zi, gamma, ar, ai, br, bi = (x.to(dtype)[None, :, None, :, None] for x in self.block.bands())
+                ek_re, ek_im = ek.to(dtype).reshape(B, H, T, 2, cfg.bands, D).unbind(3)
+                ev_re, ev_im = ev.to(dtype).reshape(B, H, T, 2, cfg.bands, D).unbind(3)
+                ek_re, ek_im = zr * ek_re - zi * ek_im + gamma * kr.unsqueeze(3), zr * ek_im + zi * ek_re  # block in
+                dv_re, dv_im = zr * ev_re - zi * ev_im, zr * ev_im + zi * ev_re                             # block out
+                k_mix = (ar * ek_re - ai * ek_im).sum(3)
+                v_mix = (br * dv_re - bi * dv_im).sum(3)
+                ev_re = dv_re + gamma * v.unsqueeze(3)
+                ek = torch.stack((ek_re, ek_im), 3).reshape(B, H, T, -1).to(store)
+                ev = torch.stack((ev_re, dv_im), 3).reshape(B, H, T, -1).to(store)
             s = v.transpose(-1, -2) @ k_mix + v_mix.transpose(-1, -2) @ kr
             eta = self.block.eta().to(dtype)[None, :, None, None]
             w = (1 - eta) * w.to(dtype) + eta * s
             read = qr @ (v.transpose(-1, -2) @ kr + w).transpose(-1, -2)
-            ev_re = dv_re + gamma * v.unsqueeze(3)
-            ek = torch.stack((ek_re, ek_im), 3).reshape(B, H, T, -1)
-            ev = torch.stack((ev_re, dv_im), 3).reshape(B, H, T, -1)
         return read, ek, ev, w
 
     def block_step(self, h, inj, ek, ev, w):
@@ -316,8 +332,10 @@ class Coupled(nn.Module):
         """Fresh lanes: h = init_hidden, zero traces, W, Theta, Gamma and read."""
         c, dt = self.cfg, self.forward_dtype
         z = lambda *s: torch.zeros(L, *s, device=device, dtype=dt)
+        tdt = getattr(torch, c.trace_dtype) if dt == torch.float32 else dt
+        zt = lambda *s: torch.zeros(L, *s, device=device, dtype=tdt)
         return dict(h=self.init_hidden.to(device).expand(L, self.T, self.d).clone(),
-                    ek=z(self.H, self.T, 2 * self.dh * c.bands), ev=z(self.H, self.T, 2 * self.dh * c.bands),
+                    ek=zt(self.H, self.T, 2 * self.dh * c.bands), ev=zt(self.H, self.T, 2 * self.dh * c.bands),
                     w=z(self.H, self.dh, self.dh), theta=z(VOCAB, c.phi),
                     gam=z(c.frames + 1) if c.frames else None, r=z(self.O, VOCAB))
 

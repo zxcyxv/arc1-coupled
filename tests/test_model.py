@@ -175,5 +175,26 @@ class Lasso(unittest.TestCase):
         self.assertEqual(float(kap[..., [0, 1, 12]].abs().max()), 0.0)
 
 
+@unittest.skipUnless(torch.cuda.is_available(), 'CUDA')
+class FusedBands(unittest.TestCase):
+    def test_fused_trace_step_equals_pytorch(self):
+        """arc/bands_kernel.py against the PyTorch path in FP32 (T = 50: a full and a partial token tile): the second
+        segment's logits, carry and every parameter gradient."""
+        dev = torch.device('cuda')
+        out = {}
+        for fused in (False, True):
+            cfg = small(canvas=5, d=32, frames=3, frame_dim=8, dtype='float32', amp=False, fused_bands=fused)
+            m = model(cfg).to(dev)
+            b = {k: v.to(dev) for k, v in batch(cfg).items()}
+            _, carry = m.segment(None, b)
+            logits, carry = m.segment(carry, b)
+            logits.square().sum().backward()
+            out[fused] = [logits, carry['ek'], carry['ev'], carry['w']] + [p.grad for p in m.parameters()
+                                                                           if p.grad is not None]
+        self.assertEqual(len(out[False]), len(out[True]))
+        for a, b in zip(out[False], out[True]):
+            self.assertLessEqual(float((a - b).abs().max()), 1e-4 * float(a.abs().max()))
+
+
 if __name__ == '__main__':
     unittest.main()
