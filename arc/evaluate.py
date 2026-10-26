@@ -238,8 +238,7 @@ def main():
     if cfg['compile'] and device.type == 'cuda':                     # as in training: one compiled block for all 8
         import torch._inductor.config as ic
         ic.triton.persistent_reductions = False
-        model.block_fn = torch.compile(model.block_step, dynamic=False)
-        model.head_fn = torch.compile(model.rule_head, dynamic=False)      # the rule head after every block
+        model.layer_fn = torch.compile(model.layer, dynamic=False)        # one block and its rule head
     versions = version_set(store, args.versions)
     segments = args.segments or cfg['loops']
     t0 = time.time()

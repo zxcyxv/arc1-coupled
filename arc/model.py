@@ -31,8 +31,9 @@ A segment runs `blocks` blocks from the carry, the last `grad_blocks` with gradi
 With fused_bands (CUDA, FP32 forward) the trace update runs as one Triton kernel each way (arc/bands_kernel.py), and so
 do the unit q/k, their RoPE and the head split (arc/rope_kernel.py): the same formulas with less memory traffic. The RoPE
 tables (cos, sin of the learned angles) are computed once per segment. The token sums (S, W, read) are an autograd
-Function (BandsRead) whose backward pass stays FP32 inside the compiled, autocast block. The trainer compiles
-block_step and the rule head after it (rule_head) separately, each with static shapes.
+Function (BandsRead) whose backward pass stays FP32 inside the compiled, autocast block. The trainer compiles one
+layer (block_step and the rule head after it, `layer`) with static shapes, and captures each micro-batch's segment, loss
+and backward pass as one CUDA graph (arc/train.py).
 """
 import math
 from dataclasses import dataclass
@@ -253,8 +254,7 @@ class Coupled(nn.Module):
             r, cc = torch.meshgrid(torch.arange(C), torch.arange(C), indexing='ij')
             self.register_buffer('frame_pos', torch.stack([r, cc], -1).reshape(-1, 2).float(), persistent=False)
         self.to(self.forward_dtype)
-        self.block_fn = None                                   # compiled block_step (trainer)
-        self.head_fn = None                                    # compiled rule_head (trainer)
+        self.layer_fn = None                                   # compiled layer (trainer, evaluation)
 
     # ------------------------------------------------------------------ perception
     def amp(self, device):
@@ -420,7 +420,7 @@ class Coupled(nn.Module):
     def rule_head(self, h, x_in, y, m, demo, group, theta, gam, amp):
         """The rule head after one block, in FP32 (FP64 on the test path): phi, kappa, the leave-one-out statistics,
         one proximal step and the read. Returns the new theta, gam and r [L,O,13]. Static shapes and no host sync, so
-        the trainer compiles it (head_fn, like block_fn)."""
+        the trainer compiles it (inside layer_fn)."""
         c = self.cfg
         with torch.autocast('cuda', enabled=False):
             phi = self.features(h)
@@ -434,6 +434,18 @@ class Coupled(nn.Module):
             if c.frames:
                 r = r + (gam[..., None, None] * kap).sum(1)
         return theta, gam, r
+
+    def layer(self, h, emb, ek, ev, w, tables, theta, gam, r, x_in, y, m, demo, group, amp, head=True):
+        """One block and the rule head after it: the feedback fb = W_fb r of the previous head (FP32, as the caller's
+        autocast state), block_step under BF16 autocast (amp), rule_head (FP32). Returns the new h, ek, ev, w, theta,
+        gam, r. The trainer compiles this whole layer as one region (layer_fn): h feeds both the head and the next
+        layer, so the backward pass sums its two gradients inside the compiled graph instead of a separate add."""
+        fb = self.w_fb(r).to(emb.dtype) if head else None
+        with torch.autocast('cuda', dtype=torch.bfloat16, enabled=amp, cache_enabled=False):
+            h, ek, ev, w = self.block_step(h, emb, fb, ek, ev, w, tables)
+        if head:
+            theta, gam, r = self.rule_head(h, x_in, y, m, demo, group, theta, gam, amp)
+        return h, ek, ev, w, theta, gam, r
 
     # ------------------------------------------------------------------ segments
     def initial_carry(self, L, device):
@@ -466,8 +478,7 @@ class Coupled(nn.Module):
         theta, gam, r = carry['theta'], carry['gam'], carry['r']
         amp = self.amp(dev)
         first_grad = c.blocks - c.grad_blocks
-        fn = self.block_fn or self.block_step
-        head_fn = self.head_fn or self.rule_head
+        fn = self.layer_fn or self.layer
         with torch.autocast('cuda', dtype=torch.bfloat16, enabled=amp, cache_enabled=False):
             emb = self.embed(x)
         tables = self.rope_tables()
@@ -476,11 +487,8 @@ class Coupled(nn.Module):
                 if i == first_grad:                            # the no-grad blocks' head state enters as a constant
                     theta, r = theta.detach(), r.detach()
                     gam = None if gam is None else gam.detach()
-                fb = self.w_fb(r).to(emb.dtype) if head else None
-                with torch.autocast('cuda', dtype=torch.bfloat16, enabled=amp, cache_enabled=False):
-                    h, ek, ev, w = fn(h, emb, fb, ek, ev, w, tables)
-                if head:
-                    theta, gam, r = head_fn(h, x_in, y, m, demo, group, theta, gam, amp)
+                h, ek, ev, w, theta, gam, r = fn(h, emb, ek, ev, w, tables, theta, gam, r, x_in, y, m, demo, group,
+                                                 amp, head)
         with torch.autocast('cuda', enabled=False):
             logits = self.classifier(h[:, self.O:].to(dt))
             if head:
