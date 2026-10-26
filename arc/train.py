@@ -13,6 +13,11 @@ batch, split over ranks and `grad_accum` micro-batches; each micro-batch's carry
 gradients all-reduced (SUM). AdamATan2, linear warmup then constant lr, weight decay on every parameter, no clipping
 (a non-finite loss or gradient stops the run; the last checkpoint stays). EMA of the parameters for evaluation and
 checkpoints. Steps = int(epochs * tasks * mean_puzzle_examples / global_batch_size), TRM pretrain.py's count.
+
+On CUDA with compile, one layer (block + rule head, Coupled.layer) is compiled, and each micro-batch's segment, loss and
+backward pass is replayed as a CUDA graph (GraphedMicroBatches; cuda_graphs=false for the eager loop): the same kernels
+without the per-kernel launch cost. Gradients live in one flat buffer (one all-reduce, one finiteness check); the
+optimizer and the EMA run as _foreach ops (bitwise the per-parameter loop).
 """
 import argparse
 import json
@@ -46,6 +51,7 @@ DEFAULTS = dict(
     final_eval=True, final_versions='all', eval_lanes=None,   # eval micro-batch lanes (None: the training micro-batch)
     save_every_steps=2048, keep_last=2,
     log_every=50, seed=0, compile=True, max_hours=None,
+    cuda_graphs=True,                 # with compile on CUDA: each micro-batch (segment, loss, backward) as a CUDA graph
 )
 _STOP = False
 
@@ -100,8 +106,11 @@ class AdamATan2(Optimizer):
 
     @torch.no_grad()
     def step(self, closure=None):
+        """The element operations above as _foreach ops over the parameters that share a step count, dtype and device
+        (one launch per operation, not per parameter and operation; atan2 has no _foreach form)."""
         for g in self.param_groups:
             b1, b2 = g['betas']
+            by_t = {}
             for p in g['params']:
                 if p.grad is None:
                     continue
@@ -109,12 +118,15 @@ class AdamATan2(Optimizer):
                 if not st:
                     st.update(step=0, m=torch.zeros_like(p), v=torch.zeros_like(p))
                 st['step'] += 1
-                t, m, v = st['step'], st['m'], st['v']
-                p.mul_(1 - g['lr'] * g['weight_decay'])
-                m.lerp_(p.grad, 1 - b1)
-                v.lerp_(p.grad * p.grad, 1 - b2)
-                denom = v.sqrt() / math.sqrt(1 - b2 ** t)
-                p.add_(torch.atan2(m, denom), alpha=-g['lr'] / (1 - b1 ** t))
+                by_t.setdefault((st['step'], p.dtype, p.device), []).append(p)
+            for (t, _, _), ps in by_t.items():
+                grads = [p.grad for p in ps]
+                ms, vs = [self.state[p]['m'] for p in ps], [self.state[p]['v'] for p in ps]
+                torch._foreach_mul_(ps, 1 - g['lr'] * g['weight_decay'])
+                torch._foreach_lerp_(ms, grads, 1 - b1)
+                torch._foreach_lerp_(vs, torch._foreach_mul(grads, grads), 1 - b2)
+                denom = torch._foreach_div(torch._foreach_sqrt(vs), math.sqrt(1 - b2 ** t))
+                torch._foreach_add_(ps, [torch.atan2(m, d) for m, d in zip(ms, denom)], alpha=-g['lr'] / (1 - b1 ** t))
 
 
 def lm_loss(logits, labels, O):
@@ -126,8 +138,8 @@ def lm_loss(logits, labels, O):
     loss = (torch.where(lab, cell, 0).sum(-1) / lab.sum(-1).clamp_min(1)).sum()
     with torch.no_grad():
         right = (logits.argmax(-1) == y) & lab
-        stats = torch.stack([((right | ~lab).all(-1)).sum(), torch.tensor(len(y), device=y.device), right.sum(),
-                             lab.sum()]).double()
+        stats = torch.stack([((right | ~lab).all(-1)).sum(), torch.full((), len(y), device=y.device), right.sum(),
+                             lab.sum()]).double()             # no host-to-device copy (CUDA graph capture)
     return loss, stats
 
 
@@ -149,7 +161,26 @@ def boundary_steps(every_epochs, steps_per_epoch, loops, total):
         k += 1
 
 
-def _allreduce_grads(model, ws):
+def flat_grads(model):
+    """Every parameter's .grad as a view of one zeroed flat buffer (returned), when the parameters share a dtype and
+    device (else None: autograd's own .grad tensors). Backward accumulates into the views in place, so the all-reduce
+    and the finiteness check each read one tensor, and CUDA graphs see fixed gradient addresses."""
+    params = list(model.parameters())
+    if len({(p.dtype, p.device) for p in params}) != 1:
+        return None
+    flat = torch.zeros(sum(p.numel() for p in params), dtype=params[0].dtype, device=params[0].device)
+    off = 0
+    for p in params:
+        p.grad = flat[off:off + p.numel()].view_as(p)
+        off += p.numel()
+    return flat
+
+
+def _allreduce_grads(model, ws, flat=None):
+    if flat is not None:
+        if ws > 1:
+            dist.all_reduce(flat)                                 # SUM: the loss is divided by the GLOBAL batch
+        return
     params = list(model.parameters())
     for p in params:
         if p.grad is None:
@@ -164,10 +195,106 @@ def _allreduce_grads(model, ws):
 
 
 def _any(flag, device, ws):
-    t = torch.tensor([int(flag)], device=device)
+    """flag: a Python bool, or a bool tensor on device (then no host sync before the all-reduce)."""
+    t = flag.reshape(1).int() if torch.is_tensor(flag) else torch.tensor([int(flag)], device=device)
     if ws > 1:
         dist.all_reduce(t, op=dist.ReduceOp.MAX)
     return bool(t.item())
+
+
+class GraphedMicroBatches:
+    """A step's grad_accum micro-batches as CUDA graphs, one per micro-batch slot: the segment (compiled layers), the
+    loss and the backward pass, then the new carry copied into the slot's carry buffers. Batches and carries live in
+    static per-slot buffers (load() copies a new plan in, reset() writes initial_carry's fresh-lane values in place),
+    gradients accumulate into the fixed .grad views of flat_grads, and the graphs share one memory pool (replayed in
+    capture order, never concurrently). Same kernels in the same order as the eager loop; the CPU launches k graphs per
+    step instead of every kernel. The first capture follows one eager warm-up micro-batch on the capture stream
+    (compilation, autotuning, cuDNN plans, cuBLAS workspaces) whose results are discarded. release() frees the graphs
+    and their pool (before an evaluation, which then gets that memory); the next run() captures again."""
+    def __init__(self, model, k, gbs, flat):
+        self.model, self.k, self.gbs, self.flat = model, k, gbs, flat
+        self.batches = self.carries = self.graphs = self.outs = None
+        self.stream = torch.cuda.Stream()
+        self.warm = False
+
+    def load(self, batches):
+        """A new plan's micro-batches (every lane fresh)."""
+        if self.batches is None:
+            self.batches = [{n: v.clone() for n, v in b.items()} for b in batches]
+            x = self.batches[0]['inputs']
+            self.carries = [self.model.initial_carry(x.shape[0], x.device) for _ in range(self.k)]
+            return
+        for sb, b in zip(self.batches, batches):
+            for n, v in b.items():
+                if sb[n].shape != v.shape or sb[n].dtype != v.dtype:
+                    raise ValueError(f'micro-batch {n}: shape or dtype changed under CUDA graphs')
+                sb[n].copy_(v)
+        self.reset()
+
+    @torch.no_grad()
+    def reset(self):
+        """Fresh lanes in every slot, with initial_carry's values."""
+        for c in self.carries:
+            c['h'].copy_(self.model.init_hidden.expand_as(c['h']))
+            for n, v in c.items():
+                if n != 'h' and v is not None:
+                    v.zero_()
+
+    def _micro(self, i, write_carry):
+        c = self.model.cfg
+        logits, new = self.model.segment(self.carries[i], self.batches[i])
+        loss, st = lm_loss(logits, self.batches[i]['labels'], self.model.O)
+        # With no-grad blocks first, the backward pass never reads the incoming carry, so the new carry is written
+        # (or, in the warm-up, dropped) before it: its blocks are free for the backward pass, as eager frees the old
+        # carry. Else after the backward pass.
+        early = c.blocks > c.grad_blocks
+        if early:
+            if write_carry:
+                self._write(i, new)
+            new = None
+        (loss / self.gbs).backward()
+        if write_carry and not early:
+            self._write(i, new)
+        return loss.detach(), st
+
+    @torch.no_grad()
+    def _write(self, i, new):
+        for n, v in new.items():
+            if v is not None:
+                self.carries[i][n].copy_(v)
+
+    def capture(self):
+        s = self.stream
+        s.wait_stream(torch.cuda.current_stream())
+        if not self.warm:
+            with torch.cuda.stream(s):
+                self._micro(0, False)
+            self.warm = True
+        torch.cuda.synchronize()
+        self.flat.zero_()
+        torch.cuda.empty_cache()                               # the warm-up's cached blocks, before the pool grows
+        pool = torch.cuda.graph_pool_handle()
+        self.graphs, self.outs = [], []
+        for i in range(self.k):
+            g = torch.cuda.CUDAGraph()
+            with torch.cuda.graph(g, pool=pool, stream=s):
+                self.outs.append(self._micro(i, True))
+            self.graphs.append(g)
+        torch.cuda.synchronize()
+
+    def run(self):
+        """The step's micro-batches: [(loss, stats)] per slot, valid until the next run()."""
+        if self.graphs is None:
+            self.capture()
+        for g in self.graphs:
+            g.replay()
+        return self.outs
+
+    def release(self):
+        if self.graphs is not None:
+            torch.cuda.synchronize()
+            self.graphs = self.outs = None
+            torch.cuda.empty_cache()
 
 
 def _signal(signum, frame):
@@ -279,8 +406,7 @@ def main(argv=None):
         import torch._inductor.config as ic
         ic.triton.persistent_reductions = False
         dc.recompile_limit = max(dc.recompile_limit, 16)
-        model.block_fn = torch.compile(model.block_step, dynamic=False)
-        model.head_fn = torch.compile(model.rule_head, dynamic=False)      # the rule head after every block
+        model.layer_fn = torch.compile(model.layer, dynamic=False)        # one block and its rule head
     stream = TrainStream(store, cfg['seed'], lanes, ws * k)
     quick = boundary_steps(cfg['quick_eval_epochs'], spe, loops, total)
     vote = boundary_steps(cfg['vote_eval_epochs'], spe, loops, total)
@@ -299,6 +425,10 @@ def main(argv=None):
             dist.destroy_process_group()
         return
     carries, batches = [None] * k, [None] * k
+    flat = flat_grads(model)
+    graphed = None
+    if cfg['cuda_graphs'] and cfg['compile'] and device.type == 'cuda' and flat is not None:
+        graphed = GraphedMicroBatches(model, k, gbs, flat)
     train_log = (out / 'train.jsonl').open('a') if rank == 0 and not args.bench else None
     window, stopped = [], False
     last_exact = None
@@ -306,6 +436,8 @@ def main(argv=None):
 
     def evaluate(kind, versions):
         t0 = time.monotonic()
+        if graphed is not None:
+            graphed.release()                                          # the graphs' pool goes to the evaluation
         with EMAWeights(model, ema):
             res = run_eval(model, store, versions, eval_lanes, loops, rank, ws, device, log)
         if rank == 0:
@@ -338,27 +470,43 @@ def main(argv=None):
                 batches = [{n: v.to(device, non_blocking=True) for n, v in stream.micro_batch(g).items()}
                            for g in plan[rank * k:(rank + 1) * k]]
                 carries = [None] * k
+                if graphed is not None:
+                    graphed.load(batches)                               # fresh lanes in the graphs' static buffers
+                    batches = None
             t0 = time.monotonic()
             for g in opt.param_groups:
                 g['lr'] = cfg['lr'] * min(1.0, (step + 1) / max(1, cfg['lr_warmup_steps']))
             stats = torch.zeros(4, device=device, dtype=torch.float64)
             loss_sum = torch.zeros((), device=device, dtype=torch.float64)
-            for i in range(k):
-                logits, carries[i] = model.segment(carries[i], batches[i])
-                loss, st = lm_loss(logits, batches[i]['labels'], model.O)
-                (loss / gbs).backward()
-                loss_sum += loss.detach()
-                stats += st
-            _allreduce_grads(model, ws)
-            bad = not (torch.isfinite(loss_sum) and all(torch.isfinite(p.grad).all() for p in model.parameters()))
+            if graphed is not None:
+                for loss, st in graphed.run():
+                    loss_sum += loss
+                    stats += st
+            else:
+                for i in range(k):
+                    logits, carries[i] = model.segment(carries[i], batches[i])
+                    loss, st = lm_loss(logits, batches[i]['labels'], model.O)
+                    (loss / gbs).backward()
+                    loss_sum += loss.detach()
+                    stats += st
+            _allreduce_grads(model, ws, flat)
+            if flat is not None:                                        # one host sync
+                bad = ~(torch.isfinite(loss_sum) & torch.isfinite(flat).all())
+            else:
+                bad = not (torch.isfinite(loss_sum) and all(torch.isfinite(p.grad).all() for p in model.parameters()))
             if _any(bad, device, ws):
                 raise FloatingPointError(f'non-finite loss or gradient at step {step}; the last checkpoint is intact')
             opt.step()
-            opt.zero_grad(set_to_none=True)
+            if flat is not None:
+                flat.zero_()                                            # the .grad views stay (fixed addresses)
+            else:
+                opt.zero_grad(set_to_none=True)
             model.block.project_eta_(model.cfg)
             with torch.no_grad():
-                for n, p in model.named_parameters():
-                    ema[n].mul_(cfg['ema_rate']).add_(p.detach(), alpha=1 - cfg['ema_rate'])
+                names = [n for n, _ in model.named_parameters()]
+                ev = [ema[n] for n in names]
+                torch._foreach_mul_(ev, cfg['ema_rate'])
+                torch._foreach_add_(ev, [p.detach() for _, p in model.named_parameters()], alpha=1 - cfg['ema_rate'])
             red = torch.cat([loss_sum[None], stats])
             if ws > 1:
                 dist.all_reduce(red)
