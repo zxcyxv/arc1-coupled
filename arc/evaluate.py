@@ -239,6 +239,8 @@ def main():
         import torch._inductor.config as ic
         ic.triton.persistent_reductions = False
         model.block_fn = torch.compile(model.block_step, dynamic=False)
+        model.head_fn = torch.compile(model.rule_head, dynamic=False)      # the rule head after every block
+        model.inject_fn = torch.compile(model.inject, dynamic=False)
     versions = version_set(store, args.versions)
     segments = args.segments or cfg['loops']
     t0 = time.time()

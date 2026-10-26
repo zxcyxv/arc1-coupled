@@ -29,7 +29,8 @@ lasso over (Theta, Gamma), one proximal step on each block in turn. Gamma has no
 
 A segment runs `blocks` blocks from the carry, the last `grad_blocks` with gradients, and returns the detached carry.
 With fused_bands (CUDA, FP32 forward) the trace update runs as one Triton kernel each way (arc/bands_kernel.py): the
-same formulas with less memory traffic.
+same formulas with less memory traffic. The trainer compiles block_step and the rule head after it (rule_head,
+inject) separately, each with static shapes.
 """
 import math
 from dataclasses import dataclass
@@ -185,6 +186,8 @@ class Coupled(nn.Module):
             self.register_buffer('frame_pos', torch.stack([r, cc], -1).reshape(-1, 2).float(), persistent=False)
         self.to(self.forward_dtype)
         self.block_fn = None                                   # compiled block_step (trainer)
+        self.head_fn = None                                    # compiled rule_head (trainer)
+        self.inject_fn = None                                  # compiled inject (trainer)
 
     # ------------------------------------------------------------------ perception
     def amp(self, device):
@@ -264,16 +267,16 @@ class Coupled(nn.Module):
         x1, x2 = x[..., 0::2], x[..., 1::2]
         return torch.stack([x1 * cos - x2 * sin, x1 * sin + x2 * cos], -1).flatten(-2)
 
-    def frame_colours(self, h, x_in):
+    def frame_colours(self, h, x_in, amp=None):
         """kappa [L,F,O,13] of the output-canvas cells from h [L,T,d] and the input-canvas tokens x_in [L,O]; colour
         cells are tokens 2..11 (pad and EOS are never read). The softmax read runs through SDPA (no [O,O] tensor kept
-        for the backward pass on CUDA)."""
+        for the backward pass on CUDA). amp: self.amp(h.device), passed by segment (None: computed here)."""
         c = self.cfg
         L, O, K, E = h.shape[0], self.O, c.frames, c.frame_dim
         dt = self.w_fq.weight.dtype
         live = (x_in >= 2) & (x_in <= 11)
         col = F.one_hot(x_in, VOCAB).to(dt) * live[..., None]
-        bf16 = self.amp(h.device) and c.frame_bf16
+        bf16 = (self.amp(h.device) if amp is None else amp) and c.frame_bf16
         proj = ((lambda lin, x: F.linear(x.bfloat16(), lin.weight.bfloat16()).to(dt)) if bf16
                 else (lambda lin, x: lin(x.to(dt))))
         q = self.frame_rope(proj(self.w_fq, h[:, O:]).view(L, O, K, E).transpose(1, 2))
@@ -295,23 +298,26 @@ class Coupled(nn.Module):
         hist = col.sum(1) / live.sum(1, keepdim=True).clamp_min(1).to(dt)
         return torch.cat([hist[:, None, None].expand(L, 1, O, VOCAB), kap], 1) / math.sqrt(K + 1)
 
-    def statistics(self, phi, y, m, demo, group, ng, kap=None):
+    def statistics(self, phi, y, m, demo, group, ng=None, kap=None):
         """Leave-one-out statistics per lane over the OTHER demonstration lanes of its group: G [L,p,p], S [L,13,p]
         and, with frame colours kap [L,F,O,13], C [L,F,13,p], H [L,F,F], s [L,F]. phi [L,O,p], y one-hot [L,O,13],
-        m [L,O] labelled cells, demo [L], group [L] in 0..ng-1."""
+        m [L,O] labelled cells, demo [L], group [L] (any integer labels; ng is not needed and ignored). The sums over
+        the other lanes of the group are one 0/1 [L,L] matmul (exact products, no cancellation of the own lane, static
+        shapes, no atomics). The contractions with a small output (H, s here; the Gamma terms in step and rule_head)
+        are products and sums, which the compiled head fuses into reductions (as einsums they ran as slow cuBLAS
+        GEMVs); without compile H materialises an [L,F,F,O,13] product."""
         w = m * demo[:, None]
         parts = [torch.einsum('lo,lop,loq->lpq', w, phi, phi), torch.einsum('lo,loc,lop->lcp', w, y, phi)]
         if kap is not None:
-            parts += [torch.einsum('lo,lkoc,lop->lkcp', w, kap, phi), torch.einsum('lo,lkoc,ljoc->lkj', w, kap, kap),
-                      torch.einsum('lo,loc,lkoc->lk', w, y, kap)]
+            wk = w[:, None, :, None] * kap
+            parts += [torch.einsum('lkoc,lop->lkcp', wk, phi), (wk[:, :, None] * kap[:, None]).sum((-2, -1)),
+                      (wk * y[:, None]).sum((-2, -1))]
         nl = w.sum(-1)
-        Ng = nl.new_zeros(ng).index_add_(0, group, nl)
-        n = (Ng[group] - nl).clamp_min(1)                      # own lane removed (a non-demonstration adds nothing)
-        out = []
-        for P in parts:
-            Pg = P.new_zeros(ng, *P.shape[1:]).index_add_(0, group, P)
-            out.append((Pg[group] - P) / n.view(-1, *[1] * (P.dim() - 1)))
-        return out
+        L = group.shape[0]
+        others = (group[:, None] == group[None, :]) & ~torch.eye(L, dtype=torch.bool, device=group.device)
+        others = others.to(nl.dtype)                           # [L,L]: the other lanes of each lane's group
+        n = (others @ nl).clamp_min(1)                         # own lane left out (a non-demonstration adds nothing)
+        return [(others @ P.reshape(L, -1)).view_as(P) / n.view(-1, *[1] * (P.dim() - 1)) for P in parts]
 
     def step(self, theta, G, S, gam=None, ext=None):
         """One proximal step of the lasso on Theta (step 1); with frames (gam [L,F], ext = (C, H, s)) then one on
@@ -319,13 +325,35 @@ class Coupled(nn.Module):
         lam = F.softplus(self.lam_raw)
         g = theta @ G - S
         if gam is not None:
-            g = g + torch.einsum('lk,lkcp->lcp', gam, ext[0])
+            g = g + (gam[..., None, None] * ext[0]).sum(1)
         theta = soft(theta - g, lam)
         if gam is None:
             return theta
         Ck, H, sv = ext
-        gg = torch.einsum('lcp,lkcp->lk', theta, Ck) + torch.einsum('lkj,lj->lk', H, gam) - sv
+        gg = (theta[:, None] * Ck).sum((-2, -1)) + (H * gam[:, None]).sum(-1) - sv
         return theta, soft(gam - gg, lam)
+
+    def rule_head(self, h, x_in, y, m, demo, group, theta, gam, amp):
+        """The rule head after one block, in FP32 (FP64 on the test path): phi, kappa, the leave-one-out statistics,
+        one proximal step and the read. Returns the new theta, gam and r [L,O,13]. Static shapes and no host sync, so
+        the trainer compiles it (head_fn, like block_fn)."""
+        c = self.cfg
+        with torch.autocast('cuda', enabled=False):
+            phi = self.features(h)
+            kap = self.frame_colours(h, x_in, amp) if c.frames else None
+            G, S, *ext = self.statistics(phi, y, m, demo, group, kap=kap)
+            if c.frames:
+                theta, gam = self.step(theta, G, S, gam, ext)
+            else:
+                theta = self.step(theta, G, S)
+            r = torch.einsum('lcp,lop->loc', theta, phi)
+            if c.frames:
+                r = r + (gam[..., None, None] * kap).sum(1)
+        return theta, gam, r
+
+    def inject(self, emb, r):
+        """The next block's injection: the embeddings, plus W_fb r on the output canvas (compiled as inject_fn)."""
+        return torch.cat([emb[:, :self.O], emb[:, self.O:] + self.w_fb(r).to(emb.dtype)], 1)
 
     # ------------------------------------------------------------------ segments
     def initial_carry(self, L, device):
@@ -347,11 +375,11 @@ class Coupled(nn.Module):
         x, labels, group = batch['inputs'].long(), batch['labels'], batch['group'].long()
         L = x.shape[0]
         dev, dt = x.device, self.forward_dtype
-        ng = int(group.max()) + 1
         demo = batch['demo'].to(dt)
         yl = labels[:, self.O:].long()
         m = (yl != PAD).to(dt)
         y = F.one_hot(yl, VOCAB).to(dt)
+        x_in = x[:, :self.O]
         if carry is None:
             carry = self.initial_carry(L, dev)
         h, ek, ev, w = carry['h'], carry['ek'], carry['ev'], carry['w']
@@ -359,6 +387,8 @@ class Coupled(nn.Module):
         amp = self.amp(dev)
         first_grad = c.blocks - c.grad_blocks
         fn = self.block_fn or self.block_step
+        head_fn = self.head_fn or self.rule_head
+        inject_fn = self.inject_fn or self.inject
         with torch.autocast('cuda', dtype=torch.bfloat16, enabled=amp, cache_enabled=False):
             emb = self.embed(x)
         for i in range(c.blocks):
@@ -366,24 +396,11 @@ class Coupled(nn.Module):
                 if i == first_grad:                            # the no-grad blocks' head state enters as a constant
                     theta, r = theta.detach(), r.detach()
                     gam = None if gam is None else gam.detach()
-                inj = emb
-                if head:
-                    inj = torch.cat([emb[:, :self.O], emb[:, self.O:] + self.w_fb(r).to(emb.dtype)], 1)
+                inj = inject_fn(emb, r) if head else emb
                 with torch.autocast('cuda', dtype=torch.bfloat16, enabled=amp, cache_enabled=False):
                     h, ek, ev, w = fn(h, inj, ek, ev, w)
-                if not head:
-                    continue
-                with torch.autocast('cuda', enabled=False):
-                    phi = self.features(h)
-                    kap = self.frame_colours(h, x[:, :self.O]) if c.frames else None
-                    G, S, *ext = self.statistics(phi, y, m, demo, group, ng, kap)
-                    if c.frames:
-                        theta, gam = self.step(theta, G, S, gam, ext)
-                    else:
-                        theta = self.step(theta, G, S)
-                    r = torch.einsum('lcp,lop->loc', theta, phi)
-                    if c.frames:
-                        r = r + torch.einsum('lk,lkoc->loc', gam, kap)
+                if head:
+                    theta, gam, r = head_fn(h, x_in, y, m, demo, group, theta, gam, amp)
         with torch.autocast('cuda', enabled=False):
             logits = self.classifier(h[:, self.O:].to(dt))
             if head:
