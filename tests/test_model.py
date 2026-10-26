@@ -4,7 +4,7 @@ import unittest
 import torch
 import torch.nn.functional as F
 
-from arc.model import PAD, VOCAB, Coupled, ModelConfig
+from arc.model import PAD, VOCAB, BandsRead, Coupled, ModelConfig
 
 
 def small(**kw):
@@ -175,8 +175,74 @@ class Lasso(unittest.TestCase):
         self.assertEqual(float(kap[..., [0, 1, 12]].abs().max()), 0.0)
 
 
+class BandsGradients(unittest.TestCase):
+    def test_bands_read_backward(self):
+        """BandsRead's written-out backward pass (S, W and the read) against autograd's numerical gradient."""
+        g = torch.Generator().manual_seed(6)
+        B, H, T, D = 2, 3, 7, 4
+        x = [torch.randn(B, H, T, D, dtype=torch.float64, generator=g, requires_grad=True) for _ in range(5)]
+        w = torch.randn(B, H, D, D, dtype=torch.float64, generator=g, requires_grad=True)
+        eta = torch.rand(1, H, 1, 1, dtype=torch.float64, generator=g).requires_grad_()
+        self.assertTrue(torch.autograd.gradcheck(BandsRead.apply, (*x, w, eta)))
+
+
 @unittest.skipUnless(torch.cuda.is_available(), 'CUDA')
 class FusedBands(unittest.TestCase):
+    def test_qk_rope_equals_pytorch(self):
+        """arc/rope_kernel.py against the PyTorch formulas in FP64 (T = 50: a full and a partial token tile, one zero q
+        row): outputs and the gradients of qkv and the tables."""
+        from arc.rope_kernel import qk_rope
+        dev = torch.device('cuda')
+        g = torch.Generator(device=dev).manual_seed(7)
+        B, T, H, D = 3, 50, 2, 16
+        qkv = torch.randn(B, T, 3 * H * D, device=dev, generator=g)
+        qkv[1, 5, :D] = 0
+        ang = torch.randn(1, H, T, D // 2, device=dev, generator=g) * 3
+        outs = {}
+        for dt in (torch.float32, torch.float64):
+            x = qkv.to(dt).detach().requires_grad_()
+            a = ang.to(dt).detach().requires_grad_()
+            cos, sin = a.cos(), a.sin()
+            if dt == torch.float32:
+                qr, kr, v, _, _ = qk_rope(x, cos, sin, H, 1e-4)
+            else:
+                q, k, v = x.view(B, T, 3, H, D).permute(2, 0, 3, 1, 4).unbind(0)
+                unit = lambda y: y / (torch.linalg.vector_norm(y, dim=-1, keepdim=True) + 1e-4)
+                qr, kr = Coupled.rope(unit(q), (cos, sin)), Coupled.rope(unit(k), (cos, sin))
+            gen = torch.Generator(device=dev).manual_seed(8)
+            loss = sum((t * torch.randn(t.shape, device=dev, generator=gen).to(dt)).sum() for t in (qr, kr, v))
+            loss.backward()
+            outs[dt] = [qr, kr, v, x.grad, a.grad]
+        for a, b in zip(outs[torch.float32], outs[torch.float64]):
+            self.assertLessEqual(float((a.double() - b).abs().max()), 1e-5 * float(b.abs().max()))
+
+    def test_compiled_bands_backward_is_fp32(self):
+        """bands_step compiled and called under BF16 autocast (as the trainer runs block_step): its gradients stay FP32
+        (plain matmuls there would get BF16 backward GEMMs from AOTAutograd)."""
+        dev = torch.device('cuda')
+        out, state = {}, None
+        for dtype in ('float32', 'float64'):
+            cfg = small(canvas=5, d=32, dtype=dtype, fused_bands=dtype == 'float32')
+            m = model(cfg).to(dev)
+            if state is None:
+                state = m.state_dict()
+            else:
+                m.load_state_dict({k: v.double() for k, v in state.items()})
+            g = torch.Generator(device=dev).manual_seed(9)
+            B, T = 2, m.T
+            qkv = torch.randn(B, T, 3 * cfg.d, device=dev, generator=g).to(m.forward_dtype).requires_grad_()
+            ek, ev = (torch.randn(B, cfg.heads, T, 2 * cfg.bands * m.dh, device=dev, generator=g).to(m.forward_dtype)
+                      for _ in range(2))
+            w = torch.randn(B, cfg.heads, m.dh, m.dh, device=dev, generator=g).to(m.forward_dtype)
+            fn = torch.compile(m.bands_step, dynamic=False) if dtype == 'float32' else m.bands_step
+            with torch.autocast('cuda', dtype=torch.bfloat16, enabled=dtype == 'float32'):
+                read, ek2, ev2, w2 = fn(qkv, ek, ev, w)
+            (read.square().sum() + ek2.sum() + w2.square().sum()).backward()
+            out[dtype] = [read, w2, qkv.grad] + [p.grad for p in m.block.parameters() if p.grad is not None]
+        self.assertEqual(len(out['float32']), len(out['float64']))
+        for a, b in zip(out['float32'], out['float64']):
+            self.assertLessEqual(float((a.double() - b).abs().max()), 1e-5 * float(b.abs().max()))
+
     def test_fused_trace_step_equals_pytorch(self):
         """arc/bands_kernel.py against the PyTorch path in FP32 (T = 50: a full and a partial token tile): the second
         segment's logits, carry and every parameter gradient."""
