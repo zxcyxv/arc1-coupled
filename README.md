@@ -33,6 +33,7 @@ bash scripts/run.sh archive    # 로그와 평가를 docs/evidence/run_arc1로(�
 ```text
 arc/model.py         coupled 모델: bands 블록(흔적, W, 2D RoPE), lasso 규칙 헤드 Θ(+ 틀 색 Γ), 세그먼트 단위 carry
 arc/bands_kernel.py  흔적 갱신의 Triton 융합 커널(순방향, 역방향). PyTorch 경로와 같은 식, FP32 산술
+arc/rope_kernel.py   q, k 단위화 + 2D RoPE + 헤드 분할의 Triton 융합 커널(순방향, 역방향). PyTorch 경로와 같은 식, FP32 산술
 arc/data.py          TRM 빌더의 난수 흐름 재생(증강판, 평행이동) -> 압축 저장, 레인 구성, 학습 데이터 흐름
 arc/train.py         DDP 학습: 동시 레인 교체, TRM 손실, AdamATan2, EMA, 레인 교체 시점 체크포인트(정확한 재개), 평가 일정
 arc/evaluate.py      TRM 프로토콜 평가: 판별 예측 -> crop -> 역변환 -> 투표(득표, 시범 정합도) -> pass@k(과제 가중)

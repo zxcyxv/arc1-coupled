@@ -281,7 +281,6 @@ def main(argv=None):
         dc.recompile_limit = max(dc.recompile_limit, 16)
         model.block_fn = torch.compile(model.block_step, dynamic=False)
         model.head_fn = torch.compile(model.rule_head, dynamic=False)      # the rule head after every block
-        model.inject_fn = torch.compile(model.inject, dynamic=False)
     stream = TrainStream(store, cfg['seed'], lanes, ws * k)
     quick = boundary_steps(cfg['quick_eval_epochs'], spe, loops, total)
     vote = boundary_steps(cfg['vote_eval_epochs'], spe, loops, total)

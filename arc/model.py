@@ -28,9 +28,11 @@ canvas coordinates), all / sqrt(F) so sum_k |kappa_k|^2 <= 1; r(o) = Theta phi(o
 lasso over (Theta, Gamma), one proximal step on each block in turn. Gamma has no colour index.
 
 A segment runs `blocks` blocks from the carry, the last `grad_blocks` with gradients, and returns the detached carry.
-With fused_bands (CUDA, FP32 forward) the trace update runs as one Triton kernel each way (arc/bands_kernel.py): the
-same formulas with less memory traffic. The trainer compiles block_step and the rule head after it (rule_head,
-inject) separately, each with static shapes.
+With fused_bands (CUDA, FP32 forward) the trace update runs as one Triton kernel each way (arc/bands_kernel.py), and so
+do the unit q/k, their RoPE and the head split (arc/rope_kernel.py): the same formulas with less memory traffic. The RoPE
+tables (cos, sin of the learned angles) are computed once per segment. The token sums (S, W, read) are an autograd
+Function (BandsRead) whose backward pass stays FP32 inside the compiled, autocast block. The trainer compiles
+block_step and the rule head after it (rule_head) separately, each with static shapes.
 """
 import math
 from dataclasses import dataclass
@@ -40,9 +42,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 try:
-    from .bands_kernel import bands_trace
+    from .bands_kernel import bands_trace, bands_trace_bwd
+    from .rope_kernel import qk_rope
 except ImportError:                                      # no Triton: the PyTorch path only
-    bands_trace = None
+    bands_trace = bands_trace_bwd = qk_rope = None
 
 VOCAB = 13
 UNKNOWN, PAD, EOS = 0, 1, 12                         # colours are 2..11
@@ -111,6 +114,71 @@ def rms_norm(x, eps=1e-5):
 
 def soft(x, t):
     return torch.sign(x) * F.relu(x.abs() - t)
+
+
+def _sums(qr, kr, v, k_mix, v_mix, w, eta):
+    s = v.mT @ k_mix + v_mix.mT @ kr
+    w_new = (1 - eta) * w + eta * s
+    m = v.mT @ kr + w_new
+    return qr @ m.mT, w_new, s, m
+
+
+def _sums_bwd(g_read, g_w, qr, w, eta, s, m):
+    """Gradients from (read, W'): those of q~, m, S, the incoming W and eta."""
+    g_read = g_read.contiguous()                        # one copy of the head-split gradient serves both GEMMs
+    g_m = g_read.mT @ qr
+    g_qr = g_read @ m
+    g_w = g_m if g_w is None else g_w + g_m            # W' enters m and the output
+    g_s = eta * g_w
+    g_eta = ((s - w) * g_w).sum((0, 2, 3), keepdim=True)
+    return g_qr, g_m, g_s, (1 - eta) * g_w, g_eta
+
+
+class BandsRead(torch.autograd.Function):
+    """The token sums of bands_step, FP32 (FP64) GEMMs both ways:
+        S = v^T k_mix + v_mix^T k~;  W' = (1 - eta) W + eta S;  read = q~ (v^T k~ + W')^T.
+    The backward pass is written out and runs with autocast off: under torch.compile, AOTAutograd traces the backward
+    of plain matmuls with the caller's autocast state, so in the trainer's compiled block (BF16 autocast) their
+    gradients were BF16 GEMMs despite the FP32 forward."""
+
+    @staticmethod
+    def forward(ctx, qr, kr, v, k_mix, v_mix, w, eta):
+        read, w_new, s, m = _sums(qr, kr, v, k_mix, v_mix, w, eta)
+        ctx.save_for_backward(qr, kr, v, k_mix, v_mix, w, eta, s, m)
+        return read, w_new
+
+    @staticmethod
+    def backward(ctx, g_read, g_w):
+        qr, kr, v, k_mix, v_mix, w, eta, s, m = ctx.saved_tensors
+        with torch.autocast(qr.device.type, enabled=False):
+            g_qr, g_m, g_s, g_w, g_eta = _sums_bwd(g_read, g_w, qr, w, eta, s, m)
+            g_v = kr @ g_m.mT + k_mix @ g_s.mT
+            g_kr = v @ g_m + v_mix @ g_s
+            return g_qr, g_kr, g_v, v @ g_s, kr @ g_s.mT, g_w, g_eta
+
+
+class BandsFused(torch.autograd.Function):
+    """bands_trace (arc/bands_kernel.py) and BandsRead as one autograd node: the backward pass adds the token sums'
+    gradients of k~ and v onto the trace kernel's in the GEMM epilogues (baddbmm) instead of in separate passes."""
+
+    @staticmethod
+    def forward(ctx, qr, kr, v, ek, ev, P, w, eta, store):
+        ek_new, ev_new, k_mix, v_mix = bands_trace(kr, v, ek, ev, P, store)
+        read, w_new, s, m = _sums(qr, kr, v, k_mix, v_mix, w, eta)
+        ctx.save_for_backward(qr, kr, v, ek, ev, P, k_mix, v_mix, w, eta, s, m)
+        return read, ek_new, ev_new, w_new
+
+    @staticmethod
+    def backward(ctx, g_read, g_ek, g_ev, g_w):
+        qr, kr, v, ek, ev, P, k_mix, v_mix, w, eta, s, m = ctx.saved_tensors
+        with torch.autocast(qr.device.type, enabled=False):
+            g_qr, g_m, g_s, g_w, g_eta = _sums_bwd(g_read, g_w, qr, w, eta, s, m)
+            g_kr, g_v, g_ek, g_ev, g_P = bands_trace_bwd(kr, v, ek, ev, P, g_ek, g_ev, v @ g_s, kr @ g_s.mT)
+            B, H, T, D = v.shape
+            f = lambda x: x.reshape(B * H, *x.shape[2:])
+            g_kr = torch.baddbmm(torch.baddbmm(f(g_kr), f(v), f(g_m)), f(v_mix), f(g_s)).view(B, H, T, D)
+            g_v = torch.baddbmm(torch.baddbmm(f(g_v), f(kr), f(g_m).mT), f(k_mix), f(g_s).mT).view(B, H, T, D)
+            return g_qr, g_kr, g_v, g_ek, g_ev, g_P, g_w, g_eta, None
 
 
 class Block(nn.Module):
@@ -187,7 +255,6 @@ class Coupled(nn.Module):
         self.to(self.forward_dtype)
         self.block_fn = None                                   # compiled block_step (trainer)
         self.head_fn = None                                    # compiled rule_head (trainer)
-        self.inject_fn = None                                  # compiled inject (trainer)
 
     # ------------------------------------------------------------------ perception
     def amp(self, device):
@@ -206,22 +273,40 @@ class Coupled(nn.Module):
         x0, x1 = x.reshape(*x.shape[:-1], -1, 2).unbind(-1)
         return torch.stack((x0 * cos - x1 * sin, x0 * sin + x1 * cos), -1).reshape_as(x)
 
-    def bands_step(self, q, k, v, ek, ev, w):
-        """One block of the bands memory in FP32 (FP64 on the test path). ek, ev [B,H,T,2RD] hold (Re, Im) x R bands
-        of the k~ and v traces; w [B,H,D,D]. The bands are merged before the token sums, so S is two [D,T] @ [T,D]
-        products for any R. Returns read [B,H,T,D] and the new (ek, ev, w)."""
+    def rope_tables(self):
+        """cos, sin [1,H,T,P] of rope_angles(): they depend only on rope_theta, so a segment computes them once for all
+        its blocks (gradients reach rope_theta through them). Evaluated in FP64 and rounded once to the forward dtype:
+        the angles reach |theta| (2C - 1) rad, where FP32 rounding of the angle itself is the largest table error."""
+        th = self.block.rope_theta.double()
+        angles = (th[..., 0, None] * self.pos_row.double() + th[..., 1, None] * self.pos_col.double()).transpose(-1, -2)
+        angles = angles[None].contiguous()
+        dt = self.block.rope_theta.dtype
+        return angles.cos().to(dt), angles.sin().to(dt)
+
+    def bands_step(self, qkv, ek, ev, w, tables=None):
+        """One block of the bands memory in FP32 (FP64 on the test path). qkv [B,T,3d] the q, k, v projections; ek, ev
+        [B,H,T,2RD] hold (Re, Im) x R bands of the k~ and v traces; w [B,H,D,D]; tables = rope_tables() (None:
+        computed here). The bands are merged before the token sums, so S is two [D,T] @ [T,D] products for any R.
+        Returns read [B,H,T,D] and the new (ek, ev, w)."""
         cfg = self.cfg
-        with torch.autocast(device_type=q.device.type, enabled=False):
-            dtype = torch.float64 if q.dtype == torch.float64 else torch.float32
-            unit = lambda x: x / (torch.linalg.vector_norm(x, dim=-1, keepdim=True) + cfg.eps)
-            angles = self.rope_angles().to(dtype)[None]
-            tables = angles.cos(), angles.sin()
-            qr, kr = self.rope(unit(q.to(dtype)), tables), self.rope(unit(k.to(dtype)), tables)
-            v = v.to(dtype)
+        with torch.autocast(device_type=qkv.device.type, enabled=False):
+            dtype = torch.float64 if qkv.dtype == torch.float64 else torch.float32
+            fused = cfg.fused_bands and qkv.is_cuda and dtype == torch.float32
+            if tables is None:
+                tables = self.rope_tables()
+            cos, sin = (t.to(dtype) for t in tables)
+            if fused:                                      # unit q, k + RoPE + head split in one pass
+                qr, kr, v, _, _ = qk_rope(qkv, cos, sin, self.H, cfg.eps)
+            else:
+                unit = lambda x: x / (torch.linalg.vector_norm(x, dim=-1, keepdim=True) + cfg.eps)
+                q, k, v = qkv.view(*qkv.shape[:2], 3, self.H, self.dh).permute(2, 0, 3, 1, 4).unbind(0)
+                qr, kr = self.rope(unit(q.to(dtype)), (cos, sin)), self.rope(unit(k.to(dtype)), (cos, sin))
+                v = v.to(dtype)
             B, H, T, D = v.shape
             store = getattr(torch, cfg.trace_dtype) if dtype == torch.float32 else dtype
-            if cfg.fused_bands and v.is_cuda and dtype == torch.float32:
-                ek, ev, k_mix, v_mix = bands_trace(kr, v, ek, ev, torch.stack(self.block.bands()), store)
+            eta = self.block.eta().to(dtype)[None, :, None, None]
+            if fused:                                      # the trace kernel and the token sums
+                return BandsFused.apply(qr, kr, v, ek, ev, torch.stack(self.block.bands()), w.to(dtype), eta, store)
             else:
                 zr, zi, gamma, ar, ai, br, bi = (x.to(dtype)[None, :, None, :, None] for x in self.block.bands())
                 ek_re, ek_im = ek.to(dtype).reshape(B, H, T, 2, cfg.bands, D).unbind(3)
@@ -233,20 +318,19 @@ class Coupled(nn.Module):
                 ev_re = dv_re + gamma * v.unsqueeze(3)
                 ek = torch.stack((ek_re, ek_im), 3).reshape(B, H, T, -1).to(store)
                 ev = torch.stack((ev_re, dv_im), 3).reshape(B, H, T, -1).to(store)
-            s = v.transpose(-1, -2) @ k_mix + v_mix.transpose(-1, -2) @ kr
-            eta = self.block.eta().to(dtype)[None, :, None, None]
-            w = (1 - eta) * w.to(dtype) + eta * s
-            read = qr @ (v.transpose(-1, -2) @ kr + w).transpose(-1, -2)
+                read, w = BandsRead.apply(qr, kr, v, k_mix, v_mix, w.to(dtype), eta)
         return read, ek, ev, w
 
-    def block_step(self, h, inj, ek, ev, w):
-        """One recurrent block: the new hidden state and bands state."""
+    def block_step(self, h, emb, fb, ek, ev, w, tables=None):
+        """One recurrent block: the new hidden state and bands state. The block's input is emb [B,T,d] with the rule
+        head's feedback fb [B,O,d] added on the output canvas (fb None: emb alone); tables = rope_tables()."""
         L = self.block
+        O = self.O
+        inj = emb if fb is None else torch.cat([emb[:, :O], emb[:, O:] + fb], 1)
         u = h + self.embed_scale * inj
         B, T, _ = u.shape
-        heads = lambda x: x.reshape(B, T, self.H, self.dh).transpose(1, 2)
-        q, k, v = heads(L.q_proj(u)), heads(L.k_proj(u)), heads(L.v_proj(u))
-        read, ek, ev, w = self.bands_step(q, k, v, ek, ev, w)
+        qkv = F.linear(u, torch.cat([L.q_proj.weight, L.k_proj.weight, L.v_proj.weight]))   # one GEMM for q, k, v
+        read, ek, ev, w = self.bands_step(qkv, ek, ev, w, tables)
         read = read.transpose(1, 2).reshape(B, T, self.d).to(u.dtype)
         h = rms_norm(u + L.out_proj(read))
         g, a = L.ffn_gate_up(h).chunk(2, dim=-1)
@@ -351,10 +435,6 @@ class Coupled(nn.Module):
                 r = r + (gam[..., None, None] * kap).sum(1)
         return theta, gam, r
 
-    def inject(self, emb, r):
-        """The next block's injection: the embeddings, plus W_fb r on the output canvas (compiled as inject_fn)."""
-        return torch.cat([emb[:, :self.O], emb[:, self.O:] + self.w_fb(r).to(emb.dtype)], 1)
-
     # ------------------------------------------------------------------ segments
     def initial_carry(self, L, device):
         """Fresh lanes: h = init_hidden, zero traces, W, Theta, Gamma and read."""
@@ -388,17 +468,17 @@ class Coupled(nn.Module):
         first_grad = c.blocks - c.grad_blocks
         fn = self.block_fn or self.block_step
         head_fn = self.head_fn or self.rule_head
-        inject_fn = self.inject_fn or self.inject
         with torch.autocast('cuda', dtype=torch.bfloat16, enabled=amp, cache_enabled=False):
             emb = self.embed(x)
+        tables = self.rope_tables()
         for i in range(c.blocks):
             with torch.set_grad_enabled(torch.is_grad_enabled() and i >= first_grad):
                 if i == first_grad:                            # the no-grad blocks' head state enters as a constant
                     theta, r = theta.detach(), r.detach()
                     gam = None if gam is None else gam.detach()
-                inj = inject_fn(emb, r) if head else emb
+                fb = self.w_fb(r).to(emb.dtype) if head else None
                 with torch.autocast('cuda', dtype=torch.bfloat16, enabled=amp, cache_enabled=False):
-                    h, ek, ev, w = fn(h, inj, ek, ev, w)
+                    h, ek, ev, w = fn(h, emb, fb, ek, ev, w, tables)
                 if head:
                     theta, gam, r = head_fn(h, x_in, y, m, demo, group, theta, gam, amp)
         with torch.autocast('cuda', enabled=False):
