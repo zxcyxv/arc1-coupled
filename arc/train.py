@@ -45,6 +45,7 @@ DEFAULTS = dict(
     global_batch_size=768, grad_accum=2, loops=16,
     epochs=100000, max_steps=None,    # TRM-nominal epochs; max_steps caps the count
     lr=1e-4, lr_warmup_steps=2000, beta1=0.9, beta2=0.95, weight_decay=0.1, ema_rate=0.999,
+    decay_all=False,                  # weight decay on every parameter (default: matrices only, decay_groups)
     quick_eval_epochs=1000,           # original version only (monitoring)
     vote_eval_epochs=10000,           # vote_versions versions, (votes, demo score) ranking
     vote_versions=8,
@@ -127,6 +128,19 @@ class AdamATan2(Optimizer):
                 torch._foreach_lerp_(vs, torch._foreach_mul(grads, grads), 1 - b2)
                 denom = torch._foreach_div(torch._foreach_sqrt(vs), math.sqrt(1 - b2 ** t))
                 torch._foreach_add_(ps, [torch.atan2(m, d) for m, d in zip(ms, denom)], alpha=-g['lr'] / (1 - b1 ** t))
+
+
+NO_DECAY = ('rope_theta', 'band_', 'frame_omega')    # learned angles, band poles and coefficients, frame frequencies
+
+
+def decay_groups(model, cfg):
+    """Weight decay on the projection, FFN, embedding and classifier matrices; none on biases, scalars, the RoPE angles,
+    the band poles and coefficients and the frame frequencies (the bands model's rule, lt/train.py create_optimizers of
+    zxcyxv/something): decay pulls those towards 0, i.e. towards short memories and coarse positions."""
+    decay = lambda n, p: cfg['decay_all'] or (p.ndim >= 2 and not any(s in n for s in NO_DECAY))
+    named = list(model.named_parameters())
+    return [{'params': [p for n, p in named if not decay(n, p)], 'weight_decay': 0.0},
+            {'params': [p for n, p in named if decay(n, p)], 'weight_decay': cfg['weight_decay']}]
 
 
 def lm_loss(logits, labels, O):
@@ -385,7 +399,7 @@ def main(argv=None):
         with torch.no_grad():
             for t in list(model.parameters()) + list(model.buffers()):
                 dist.broadcast(t, src=0)
-    opt = AdamATan2(model.parameters(), lr=0.0, betas=(cfg['beta1'], cfg['beta2']), weight_decay=cfg['weight_decay'])
+    opt = AdamATan2(decay_groups(model, cfg), lr=0.0, betas=(cfg['beta1'], cfg['beta2']))
     ema = {n: p.detach().clone() for n, p in model.named_parameters()}
     state = dict(step=0, cursor=0)
     ck = None if args.bench else latest_checkpoint(out)
