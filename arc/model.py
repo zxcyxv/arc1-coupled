@@ -31,7 +31,8 @@ A segment runs `blocks` blocks from the carry, the last `grad_blocks` with gradi
 With fused_bands (CUDA, FP32 forward) the trace update runs as one Triton kernel each way (arc/bands_kernel.py), and so
 do the unit q/k, their RoPE and the head split (arc/rope_kernel.py): the same formulas with less memory traffic. The RoPE
 tables (cos, sin of the learned angles) are computed once per segment. The token sums (S, W, read) are an autograd
-Function (BandsRead) whose backward pass stays FP32 inside the compiled, autocast block. The trainer compiles
+Function (BandsFused / BandsRead) whose backward pass stays FP32 inside the compiled, autocast block; on CUDA in FP32 they
+are 3xTF32 tensor-core Triton kernels (arc/sums_kernel.py): FP32-level accuracy, FP32 accumulation. The trainer compiles
 block_step and the rule head after it (rule_head) separately, each with static shapes.
 """
 import math
@@ -42,10 +43,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 try:
-    from .bands_kernel import bands_trace, bands_trace_bwd
     from .rope_kernel import qk_rope
+    from .sums_kernel import bands_sums_bwd, bands_sums_fwd, sums_bwd, sums_fwd
 except ImportError:                                      # no Triton: the PyTorch path only
-    bands_trace = bands_trace_bwd = qk_rope = None
+    qk_rope = bands_sums_bwd = bands_sums_fwd = sums_bwd = sums_fwd = None
 
 VOCAB = 13
 UNKNOWN, PAD, EOS = 0, 1, 12                         # colours are 2..11
@@ -135,21 +136,28 @@ def _sums_bwd(g_read, g_w, qr, w, eta, s, m):
 
 
 class BandsRead(torch.autograd.Function):
-    """The token sums of bands_step, FP32 (FP64) GEMMs both ways:
+    """The token sums of bands_step, FP32 (FP64) both ways:
         S = v^T k_mix + v_mix^T k~;  W' = (1 - eta) W + eta S;  read = q~ (v^T k~ + W')^T.
-    The backward pass is written out and runs with autocast off: under torch.compile, AOTAutograd traces the backward
-    of plain matmuls with the caller's autocast state, so in the trainer's compiled block (BF16 autocast) their
-    gradients were BF16 GEMMs despite the FP32 forward."""
+    On CUDA in FP32 they are 3xTF32 tensor-core kernels (arc/sums_kernel.py: FP32-level accuracy); otherwise
+    PyTorch GEMMs. The backward pass is written out and runs with autocast off: under torch.compile, AOTAutograd traces
+    the backward of plain matmuls with the caller's autocast state, so in the trainer's compiled block (BF16 autocast)
+    their gradients were BF16 GEMMs despite the FP32 forward."""
 
     @staticmethod
     def forward(ctx, qr, kr, v, k_mix, v_mix, w, eta):
-        read, w_new, s, m = _sums(qr, kr, v, k_mix, v_mix, w, eta)
+        ctx.kernel = sums_fwd is not None and qr.is_cuda and qr.dtype == torch.float32
+        if ctx.kernel:
+            read, w_new, s, m = sums_fwd(qr, kr, v, k_mix, v_mix, w, eta)
+        else:
+            read, w_new, s, m = _sums(qr, kr, v, k_mix, v_mix, w, eta)
         ctx.save_for_backward(qr, kr, v, k_mix, v_mix, w, eta, s, m)
         return read, w_new
 
     @staticmethod
     def backward(ctx, g_read, g_w):
         qr, kr, v, k_mix, v_mix, w, eta, s, m = ctx.saved_tensors
+        if ctx.kernel:
+            return sums_bwd(g_read, g_w, qr, kr, v, k_mix, v_mix, w, eta, s, m)
         with torch.autocast(qr.device.type, enabled=False):
             g_qr, g_m, g_s, g_w, g_eta = _sums_bwd(g_read, g_w, qr, w, eta, s, m)
             g_v = kr @ g_m.mT + k_mix @ g_s.mT
@@ -158,27 +166,22 @@ class BandsRead(torch.autograd.Function):
 
 
 class BandsFused(torch.autograd.Function):
-    """bands_trace (arc/bands_kernel.py) and BandsRead as one autograd node: the backward pass adds the token sums'
-    gradients of k~ and v onto the trace kernel's in the GEMM epilogues (baddbmm) instead of in separate passes."""
+    """The trace update (arc/bands_kernel.py's formulas) with the token sums of BandsRead on the same token tiles (one
+    kernel, arc/sums_kernel.py, 3xTF32 tensor-core products), then the read; backward: the sums' gradients on tensor
+    cores, added by the trace gradient kernel to its own (no separate passes for the sums of the gradients). k_mix and
+    v_mix are written only when a backward pass will need them."""
 
     @staticmethod
     def forward(ctx, qr, kr, v, ek, ev, P, w, eta, store):
-        ek_new, ev_new, k_mix, v_mix = bands_trace(kr, v, ek, ev, P, store)
-        read, w_new, s, m = _sums(qr, kr, v, k_mix, v_mix, w, eta)
+        save = any(ctx.needs_input_grad)
+        read, ek_new, ev_new, w_new, s, m, k_mix, v_mix = bands_sums_fwd(qr, kr, v, ek, ev, P, w, eta, store, save)
         ctx.save_for_backward(qr, kr, v, ek, ev, P, k_mix, v_mix, w, eta, s, m)
         return read, ek_new, ev_new, w_new
 
     @staticmethod
     def backward(ctx, g_read, g_ek, g_ev, g_w):
-        qr, kr, v, ek, ev, P, k_mix, v_mix, w, eta, s, m = ctx.saved_tensors
-        with torch.autocast(qr.device.type, enabled=False):
-            g_qr, g_m, g_s, g_w, g_eta = _sums_bwd(g_read, g_w, qr, w, eta, s, m)
-            g_kr, g_v, g_ek, g_ev, g_P = bands_trace_bwd(kr, v, ek, ev, P, g_ek, g_ev, v @ g_s, kr @ g_s.mT)
-            B, H, T, D = v.shape
-            f = lambda x: x.reshape(B * H, *x.shape[2:])
-            g_kr = torch.baddbmm(torch.baddbmm(f(g_kr), f(v), f(g_m)), f(v_mix), f(g_s)).view(B, H, T, D)
-            g_v = torch.baddbmm(torch.baddbmm(f(g_v), f(kr), f(g_m).mT), f(k_mix), f(g_s).mT).view(B, H, T, D)
-            return g_qr, g_kr, g_v, g_ek, g_ev, g_P, g_w, g_eta, None
+        g_qr, g_kr, g_v, g_ek, g_ev, g_P, g_w, g_eta = bands_sums_bwd(g_read, g_w, g_ek, g_ev, *ctx.saved_tensors)
+        return g_qr, g_kr, g_v, g_ek, g_ev, g_P, g_w, g_eta, None
 
 
 class Block(nn.Module):

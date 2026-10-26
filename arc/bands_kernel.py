@@ -61,8 +61,9 @@ def _bands_fwd(KR, V, EK, EV, P, EKO, EVO, KMIX, VMIX, T, H, R: tl.constexpr, D:
 
 
 @triton.jit
-def _bands_bwd(KR, V, EK, EV, P, GEKO, GEVO, GKMIX, GVMIX, GEK, GEV, GKR, GV, GP, T, H,
-         R: tl.constexpr, D: tl.constexpr, BT: tl.constexpr, HAS_GEK: tl.constexpr, HAS_GEV: tl.constexpr):
+def _bands_bwd(KR, V, EK, EV, P, GEKO, GEVO, GKMIX, GVMIX, GKR0, GV0, GEK, GEV, GKR, GV, GP, T, H,
+         R: tl.constexpr, D: tl.constexpr, BT: tl.constexpr, HAS_GEK: tl.constexpr, HAS_GEV: tl.constexpr,
+         HAS_G0: tl.constexpr):
     pid_t, pid_bh = tl.program_id(0), tl.program_id(1)
     h = pid_bh % H
     t = pid_t * BT + tl.arange(0, BT)
@@ -74,8 +75,12 @@ def _bands_bwd(KR, V, EK, EV, P, GEKO, GEVO, GKMIX, GVMIX, GEK, GEV, GKR, GV, GP
     v = tl.load(V + xo, mask=mask, other=0.0)
     gkm = tl.load(GKMIX + xo, mask=mask, other=0.0)
     gvm = tl.load(GVMIX + xo, mask=mask, other=0.0)
-    gkr = tl.zeros([BT, D], dtype=tl.float32)
-    gv = tl.zeros([BT, D], dtype=tl.float32)
+    if HAS_G0:                                            # other gradients of k~ and v to add (arc/sums_kernel.py)
+        gkr = tl.load(GKR0 + xo, mask=mask, other=0.0)
+        gv = tl.load(GV0 + xo, mask=mask, other=0.0)
+    else:
+        gkr = tl.zeros([BT, D], dtype=tl.float32)
+        gv = tl.zeros([BT, D], dtype=tl.float32)
     so = row[:, None] * (2 * R * D) + d[None, :]
     gp = GP + (pid_t * tl.num_programs(1) + pid_bh) // H * (7 * H * R)     # this tile's [7,H,R] partial sums
     for r in tl.static_range(R):
@@ -152,11 +157,10 @@ def _(kr, v, ek, ev, P, store):
     return _new(kr, R, store), _new(kr, R, store), kr.new_empty(B, H, T, D), kr.new_empty(B, H, T, D)
 
 
-@torch.library.custom_op('arc::bands_trace_bwd', mutates_args=(), device_types='cuda')
-def bands_trace_bwd(kr: torch.Tensor, v: torch.Tensor, ek: torch.Tensor, ev: torch.Tensor, P: torch.Tensor,
-                    geko: torch.Tensor | None, gevo: torch.Tensor | None, gkmix: torch.Tensor | None,
-                    gvmix: torch.Tensor | None) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor,
-                                                         torch.Tensor]:
+def trace_bwd(kr, v, ek, ev, P, geko, gevo, gkmix, gvmix, gkr0=None, gv0=None, inplace=False):
+    """The trace gradient kernel. gkr0, gv0 (optional): other gradients of k~ and v that the kernel adds to its own;
+    inplace (with gkr0, gv0 contiguous FP32 and not needed afterwards): the sums are written over them (no new
+    buffers). Returns g_kr, g_v, g_ek, g_ev, g_P."""
     B, H, T, D = kr.shape
     R = P.shape[-1]
     kr, v, ek, ev, P = (x.contiguous() for x in (kr, v, ek, ev, P))
@@ -164,18 +168,33 @@ def bands_trace_bwd(kr: torch.Tensor, v: torch.Tensor, ek: torch.Tensor, ev: tor
     gvmix = torch.zeros_like(kr) if gvmix is None else gvmix.contiguous()
     geko = None if geko is None else geko.contiguous()
     gevo = None if gevo is None else gevo.contiguous()
+    gkr0 = None if gkr0 is None else gkr0.contiguous()
+    gv0 = None if gv0 is None else gv0.contiguous()
     gek, gev = torch.empty_like(ek), torch.empty_like(ev)
-    gkr, gv = torch.empty_like(kr), torch.empty_like(kr)
+    if inplace and gkr0 is not None:
+        gkr, gv = gkr0, gv0                                # each program reads its tile before writing it
+    else:
+        gkr, gv = torch.empty_like(kr), torch.empty_like(kr)
     nt = triton.cdiv(T, BT)
     part = P.new_empty(nt * B, 7, H, R)
     _bands_bwd[(nt, B * H)](kr, v, ek, ev, P, ek if geko is None else geko, ev if gevo is None else gevo, gkmix, gvmix,
-                            gek, gev, gkr, gv, part, T, H, R=R, D=D, BT=BT, HAS_GEK=geko is not None,
-                            HAS_GEV=gevo is not None, num_warps=8)
+                            kr if gkr0 is None else gkr0, kr if gv0 is None else gv0, gek, gev, gkr, gv, part, T, H,
+                            R=R, D=D, BT=BT, HAS_GEK=geko is not None, HAS_GEV=gevo is not None,
+                            HAS_G0=gkr0 is not None, num_warps=8)
     return gkr, gv, gek, gev, part.sum(0)
 
 
+@torch.library.custom_op('arc::bands_trace_bwd', mutates_args=(), device_types='cuda')
+def bands_trace_bwd(kr: torch.Tensor, v: torch.Tensor, ek: torch.Tensor, ev: torch.Tensor, P: torch.Tensor,
+                    geko: torch.Tensor | None, gevo: torch.Tensor | None, gkmix: torch.Tensor | None,
+                    gvmix: torch.Tensor | None, gkr0: torch.Tensor | None = None,
+                    gv0: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor,
+                                                              torch.Tensor]:
+    return trace_bwd(kr, v, ek, ev, P, geko, gevo, gkmix, gvmix, gkr0, gv0)
+
+
 @bands_trace_bwd.register_fake
-def _(kr, v, ek, ev, P, geko, gevo, gkmix, gvmix):
+def _(kr, v, ek, ev, P, geko, gevo, gkmix, gvmix, gkr0=None, gv0=None):
     B, H, T, D = kr.shape
     return (kr.new_empty(B, H, T, D), kr.new_empty(B, H, T, D), ek.new_empty(ek.shape), ev.new_empty(ev.shape),
             P.new_empty(P.shape))

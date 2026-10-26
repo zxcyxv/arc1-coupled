@@ -262,5 +262,90 @@ class FusedBands(unittest.TestCase):
             self.assertLessEqual(float((a - b).abs().max()), 1e-4 * float(a.abs().max()))
 
 
+
+def _rel(a, b):
+    return float((a.double() - b).abs().max() / b.abs().max())
+
+
+@unittest.skipUnless(torch.cuda.is_available(), 'CUDA')
+class TensorCoreSums(unittest.TestCase):
+    """arc/sums_kernel.py (3xTF32 tensor-core products) against FP64, at odd sizes: partial token tiles, widths padded to
+    16 (D 8) and full ones."""
+
+    def test_bands_sums_equal_fp64(self):
+        from arc.sums_kernel import bands_sums_bwd, bands_sums_fwd, sums_bwd, sums_fwd
+        from arc.model import _sums
+        dev = torch.device('cuda')
+        for B, H, T, D, R in ((2, 3, 50, 8, 2), (1, 2, 130, 16, 3), (2, 1, 97, 64, 4)):
+            g = torch.Generator(device=dev).manual_seed(T)
+            rn = lambda *s: torch.randn(*s, device=dev, generator=g)
+            qr, kr, v = F.normalize(rn(B, H, T, D), dim=-1), F.normalize(rn(B, H, T, D), dim=-1), rn(B, H, T, D)
+            ek, ev, w = rn(B, H, T, 2 * R * D), rn(B, H, T, 2 * R * D), rn(B, H, D, D)
+            P = torch.cat([torch.rand(3, H, R, device=dev, generator=g) * 0.9, rn(4, H, R) * 0.3])
+            eta = torch.rand(1, H, 1, 1, device=dev, generator=g) * 0.2
+            g_read, g_w = rn(B, T, H, D).transpose(1, 2), rn(B, H, D, D)       # the block's layout of the gradient
+            g_ek, g_ev = rn(B, H, T, 2 * R * D), rn(B, H, T, 2 * R * D)
+            x = [t.double().requires_grad_() for t in (qr, kr, v, ek, ev, P, w, eta)]
+            q, k, vv, e1, e2, PP, ww, et = x
+            zr, zi, gam, ar, ai, br, bi = (p[None, :, None, :, None] for p in PP)
+            ekr, eki = e1.reshape(B, H, T, 2, R, D).unbind(3)
+            evr, evi = e2.reshape(B, H, T, 2, R, D).unbind(3)
+            ekr, eki = zr * ekr - zi * eki + gam * k.unsqueeze(3), zr * eki + zi * ekr
+            dvr, dvi = zr * evr - zi * evi, zr * evi + zi * evr
+            kmix, vmix = (ar * ekr - ai * eki).sum(3), (br * dvr - bi * dvi).sum(3)
+            kmix.retain_grad()
+            vmix.retain_grad()
+            eko = torch.stack((ekr, eki), 3).reshape(B, H, T, -1)
+            evo = torch.stack((dvr + gam * vv.unsqueeze(3), dvi), 3).reshape(B, H, T, -1)
+            read, wn, s, m = _sums(q, k, vv, kmix, vmix, ww, et)
+            ((read * g_read).sum() + (wn * g_w).sum() + (eko * g_ek).sum() + (evo * g_ev).sum()).backward()
+            ref = [read, eko, evo, wn, s, m] + [t.grad for t in x]
+            out = bands_sums_fwd(qr, kr, v, ek, ev, P, w, eta, torch.float32, True)
+            grads = bands_sums_bwd(g_read, g_w, g_ek, g_ev, qr, kr, v, ek, ev, P, out[6], out[7], w, eta, out[4], out[5])
+            for a, b in zip(list(out[:6]) + list(grads), ref):
+                self.assertLessEqual(_rel(a, b), 2e-6)
+            for a, b in zip(out[6:], (kmix, vmix)):                                 # the saved k_mix, v_mix
+                self.assertLessEqual(_rel(a, b), 2e-6)
+            # the sums alone (BandsRead): k_mix, v_mix given
+            km, vm = kmix.detach().float(), vmix.detach().float()
+            x = [t.double().requires_grad_() for t in (qr, kr, v, km, vm, w, eta)]
+            read, wn, s, m = _sums(*x)
+            ((read * g_read).sum() + (wn * g_w).sum()).backward()
+            out = sums_fwd(qr, kr, v, km, vm, w, eta)
+            grads = sums_bwd(g_read, g_w, qr, kr, v, km, vm, w, eta, out[2], out[3])
+            for a, b in zip(list(out) + list(grads), [read, wn, s, m] + [t.grad for t in x]):
+                self.assertLessEqual(_rel(a, b), 2e-6)
+            self.assertEqual(out[0].stride(), torch.empty(B, T, H, D).transpose(1, 2).stride())
+
+    def test_compiled_rule_head_equals_fp64(self):
+        """The rule head compiled (as the trainer's head_fn), against the FP64 eager head: theta, gam,
+        r and the gradients of h, the parameters and the incoming theta, gam."""
+        dev = torch.device('cuda')
+        out, state = {}, None
+        for dtype in ('float32', 'float64'):
+            cfg = small(canvas=5, d=32, frames=3, frame_dim=8, dtype=dtype, amp=False)
+            m = model(cfg).to(dev)
+            if state is None:
+                state = m.state_dict()
+            else:
+                m.load_state_dict({k: v.double() for k, v in state.items()})
+            b = {k: v.to(dev) for k, v in batch(cfg).items()}
+            L, O = len(b['group']), m.O
+            g = torch.Generator(device=dev).manual_seed(11)
+            h = torch.randn(L, m.T, cfg.d, device=dev, generator=g).to(m.forward_dtype).requires_grad_()
+            th = (torch.randn(L, VOCAB, cfg.phi, device=dev, generator=g) * 0.1).to(m.forward_dtype).requires_grad_()
+            ga = (torch.randn(L, cfg.frames + 1, device=dev, generator=g) * 0.1).to(m.forward_dtype).requires_grad_()
+            yl = b['labels'][:, O:]
+            y = F.one_hot(yl, VOCAB).to(m.forward_dtype)
+            mk = (yl != PAD).to(m.forward_dtype)
+            fn = torch.compile(m.rule_head, dynamic=False) if dtype == 'float32' else m.rule_head
+            theta, gam, r = fn(h, b['inputs'][:, :O], y, mk, b['demo'].to(m.forward_dtype), b['group'], th, ga, False)
+            (r.square().sum() + theta.square().sum() + gam.square().sum()).backward()
+            out[dtype] = [theta, gam, r, h.grad, th.grad, ga.grad] + [p.grad for p in m.parameters()
+                                                                       if p.grad is not None]
+        self.assertEqual(len(out['float32']), len(out['float64']))
+        for a, b in zip(out['float32'], out['float64']):
+            self.assertLessEqual(_rel(a, b), 1e-5)
+
 if __name__ == '__main__':
     unittest.main()
