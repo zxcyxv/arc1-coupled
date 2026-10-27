@@ -114,7 +114,7 @@ def run(model, store, versions, lanes, segments, rank=0, ws=1, device=torch.devi
             h = grid_hash(np.ascontiguousarray(g))
             grids.setdefault(h, g)
             de, dl, n = score.get(gid, [0.0, 0.0, 0])
-            recs.append((t, j, v, h, de / max(n, 1), dl / max(n, 1), *(int(c) for c in cells[lane])))
+            recs.append((t, j, v, h, de / max(n, 1), dl / max(n, 1), *(int(c) for c in cells[lane]), float(logp[lane])))
         if rank == 0 and (b // ws) % 200 == 0:
             log(f'[EVAL] micro-batch {b + 1}/{len(plan)} ({time.time() - t0:.0f}s)')
     model.train(was)
@@ -132,13 +132,18 @@ def score_records(store, recs, versions):
     """pass@k (TRM: per task the fraction of its test inputs whose answer is in the top k, mean over tasks), the
     original version's exactness, the mean exactness over all evaluated views, and cell accuracies (inside the true
     grid, and with its EOS cells) of the original version and of all views. recs: (t, j, v, hash, demo exact, demo
-    log-probability[, right grid cells, grid cells, right labelled cells, labelled cells])."""
+    log-probability[, right grid cells, grid cells, right labelled cells, labelled cells[, the test lane's mean log-probability]])."""
     by_input = {}
     view_ok, ident = [], {}
     answers = {}
     cell = {'identity': np.zeros(4), 'view': np.zeros(4)}
+    nll = {'identity': [], 'view': []}                                 # test lanes' mean CE over their labelled cells
     for r in recs:
         t, j, v, h, de, dl = r[:6]
+        if len(r) > 10:
+            nll['view'].append(-r[10])
+            if v == 0:
+                nll['identity'].append(-r[10])
         if len(r) > 6:
             cell['view'] += r[6:10]
             if v == 0:
@@ -167,6 +172,9 @@ def score_records(store, recs, versions):
                                         for t in store.eval_tasks) / n_tasks) if ident else float('nan'),
                view_exact=float(np.mean(view_ok)) if view_ok else float('nan'),
                versions=len(versions), inputs=len(answers))
+    for k, v in nll.items():
+        if v:
+            out[f'{k}_test_ce'] = float(np.mean(v))
     for k, c in cell.items():
         out[f'{k}_cell'] = float(c[0] / c[1]) if c[1] else float('nan')
         out[f'{k}_cell_eos'] = float(c[2] / c[3]) if c[3] else float('nan')

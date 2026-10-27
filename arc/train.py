@@ -46,6 +46,7 @@ DEFAULTS = dict(
     epochs=100000, max_steps=None,    # TRM-nominal epochs; max_steps caps the count
     lr=1e-4, lr_warmup_steps=2000, beta1=0.9, beta2=0.95, weight_decay=0.1, ema_rate=0.999,
     decay_all=False,                  # weight decay on every parameter (default: matrices only, decay_groups)
+    decay_lam=False,                  # weight decay on lam_raw too (it holds the lasso threshold up against the loss)
     quick_eval_epochs=1000,           # original version only (monitoring)
     vote_eval_epochs=10000,           # vote_versions versions, (votes, demo score) ranking
     vote_versions=8,
@@ -137,7 +138,7 @@ def decay_groups(model, cfg):
     """Weight decay on the projection, FFN, embedding and classifier matrices; none on biases, scalars, the RoPE angles,
     the band poles and coefficients and the frame frequencies (the bands model's rule, lt/train.py create_optimizers of
     zxcyxv/something): decay pulls those towards 0, i.e. towards short memories and coarse positions."""
-    decay = lambda n, p: cfg['decay_all'] or (p.ndim >= 2 and not any(s in n for s in NO_DECAY))
+    decay = lambda n, p: cfg['decay_all'] or (cfg['decay_lam'] and n == 'lam_raw') or (p.ndim >= 2 and not any(s in n for s in NO_DECAY))
     named = list(model.named_parameters())
     return [{'params': [p for n, p in named if not decay(n, p)], 'weight_decay': 0.0},
             {'params': [p for n, p in named if decay(n, p)], 'weight_decay': cfg['weight_decay']}]
@@ -461,7 +462,8 @@ def main(argv=None):
             log(f"[EVAL] {kind} step {state['step']} epoch {m['epoch']:.0f}: identity {m['identity_exact']}/"
                 f"{m['identity_n']} task-weighted {m['identity_exact_task']:.4f} view {m['view_exact']:.4f} "
                 f"pass@1 {m['pass@1']:.4f} pass@2 {m['pass@2']:.4f} cell {m['identity_cell']:.4f} "
-                f"cell_eos {m['identity_cell_eos']:.4f} ({m['seconds']:.0f}s)")
+                f"cell_eos {m['identity_cell_eos']:.4f} test_ce {m.get('identity_test_ce', float('nan')):.4f} "
+                f"({m['seconds']:.0f}s)")
             return res
 
     try:

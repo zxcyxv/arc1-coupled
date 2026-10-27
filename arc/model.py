@@ -67,8 +67,10 @@ class ModelConfig:
     outer_eta: float = 0.125          # initial EMA rate of W, learned per head and capped at this value
     eps: float = 1e-4                 # q, k normalisation x / (|x| + eps)
     phi: int = 64                     # rule-head feature width
-    lam_init: float = 1e-3            # lasso threshold (learned, softplus)
-    tau_init: float = 1.0             # read gain (learned)
+    lam_init: float = 1e-3            # lasso threshold (learned, softplus): lam_floor + softplus(lam_raw)
+    lam_floor: float = 0.0            # lower bound of the lasso threshold (the training loss alone drives it to 0)
+    tau_init: float = 1.0             # read gain
+    tau_learn: bool = True            # False: tau stays tau_init (a buffer, no gradient)
     frames: int = 0                   # K > 0: Gamma over K softmax frames + the grid histogram
     frame_dim: int = 32               # q/k width of a frame (frame_dim / 4 frequencies per axis)
     frame_bf16: bool = True           # with amp on CUDA: the frames' softmax read as BF16 flash attention
@@ -247,7 +249,10 @@ class Coupled(nn.Module):
         self.w_fb = nn.Linear(VOCAB, d, bias=False)
         nn.init.zeros_(self.w_fb.weight)                       # the feedback path opens by learning
         self.lam_raw = nn.Parameter(torch.tensor(math.log(math.expm1(c.lam_init))))
-        self.tau = nn.Parameter(torch.tensor(c.tau_init))
+        if c.tau_learn:
+            self.tau = nn.Parameter(torch.tensor(c.tau_init))
+        else:
+            self.register_buffer('tau', torch.tensor(c.tau_init))
         if c.frames:
             K, E = c.frames, c.frame_dim
             self.w_fq = nn.Linear(d, K * E, bias=False)
@@ -409,7 +414,7 @@ class Coupled(nn.Module):
     def step(self, theta, G, S, gam=None, ext=None):
         """One proximal step of the lasso on Theta (step 1); with frames (gam [L,F], ext = (C, H, s)) then one on
         Gamma (also valid at step 1, since sum_k |kappa_k|^2 <= 1)."""
-        lam = F.softplus(self.lam_raw)
+        lam = self.cfg.lam_floor + F.softplus(self.lam_raw)
         g = theta @ G - S
         if gam is not None:
             g = g + (gam[..., None, None] * ext[0]).sum(1)
