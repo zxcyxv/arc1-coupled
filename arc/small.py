@@ -53,6 +53,8 @@ DEFAULTS = dict(
     decay_all=True, decay_lam=False,  # old harness: decay on every parameter
     adam='old',                       # 'old': lt/train.py AdamATan2 (the old runs); 'trm': arc.train's adam-atan2 0.0.3
     num_aug=1000, eval_every=1000, log_every=100, seed=0,
+    holdout=False,                    # each task with >= 3 train pairs keeps its last one out of training (evaluated
+                                      # as 'held'; the same tasks' trained pairs as 'seen')
     compile=True, cuda_graphs=True,
 )
 
@@ -105,7 +107,7 @@ class OldAdamATan2(AdamATan2):
 class Episodes:
     """lt.coupled.CoupledEpisodes of the old repository, unchanged in its draws (same rng calls in the same order), so
     a seed gives the old harness's batches."""
-    def __init__(self, path, *, seed=0, num_aug=1000, D=5, N=None):
+    def __init__(self, path, *, seed=0, num_aug=1000, D=5, N=None, holdout=False):
         with np.load(path, allow_pickle=False) as z:
             self.cells, self.off, self.hw, self.task = z['pair_cells'], z['pair_off'], z['pair_hw'], z['pair_task']
             self.trainable = np.asarray(z['pair_trainable'] if 'pair_trainable' in z
@@ -115,6 +117,12 @@ class Episodes:
         self.n_tasks = int(self.task.max()) + 1
         self.train_pairs = {t: np.flatnonzero((self.task == t) & self.trainable) for t in range(self.n_tasks)}
         self.test_pairs = {t: np.flatnonzero((self.task == t) & ~self.trainable) for t in range(self.n_tasks)}
+        self.held = {}                  # holdout: each task with >= 3 train pairs loses its last one from training
+        if holdout:
+            for t in range(self.n_tasks):
+                if len(self.train_pairs[t]) >= 3:
+                    self.held[t] = int(self.train_pairs[t][-1])
+                    self.train_pairs[t] = self.train_pairs[t][:-1]
         self.tasks = np.array([t for t in range(self.n_tasks) if len(self.train_pairs[t]) >= 2])
         self._key0 = np.uint64(0x9E3779B97F4A7C15 ^ int(seed))
 
@@ -185,14 +193,24 @@ class Episodes:
             n += len(pairs)
         return self.collate(groups)
 
-    def eval_batches(self, n_groups):
+    def eval_batches(self, n_groups, kind='test'):
         """Every test pair: the task's first D train pairs (demonstrations) + the test pair (query), version 0; every
-        batch padded to n_groups (D + 1) lanes."""
-        items = [(t, p) for t in range(self.n_tasks) for p in self.test_pairs[t]]
+        batch padded to n_groups (D + 1) lanes. With holdout, kind 'held': each held-out train pair (never trained on)
+        as the query, the task's remaining train pairs as demonstrations; kind 'seen': the same tasks' first remaining
+        train pair (trained on) as the query, the other remaining ones + the held-out pair as demonstrations (as many
+        demonstrations as 'held')."""
+        if kind == 'test':
+            items = [(t, p, list(self.train_pairs[t][:self.D])) for t in range(self.n_tasks) for p in self.test_pairs[t]]
+        elif kind == 'held':
+            items = [(t, p, list(self.train_pairs[t][:self.D])) for t, p in self.held.items()]
+        elif kind == 'seen':
+            items = [(t, int(self.train_pairs[t][0]), (list(self.train_pairs[t][1:]) + [p])[:self.D])
+                     for t, p in self.held.items()]
+        else:
+            raise ValueError(kind)
         for i in range(0, len(items), n_groups):
             groups = []
-            for t, p in items[i:i + n_groups]:
-                demos = list(self.train_pairs[t][:self.D])
+            for t, p, demos in items[i:i + n_groups]:
                 groups.append(self.group(t, demos + [p], 0, None, [True] * len(demos) + [False],
                                          [False] * len(demos) + [True]))
             yield self.collate(groups, pad_to=n_groups * (self.D + 1))
@@ -250,13 +268,13 @@ class GraphedStep:
         return self.out
 
 
-def evaluate(model, data, device, n_groups):
+def evaluate(model, data, device, n_groups, kind='test'):
     was = model.training
     model.eval()
     tot = dict(exact=0, n=0, cell=0, n_cell=0, cell_eos=0, n_eos=0)
     ce, nq = 0.0, 0
     with torch.no_grad():
-        for b in data.eval_batches(n_groups):
+        for b in data.eval_batches(n_groups, kind):
             b = {k: v.to(device) for k, v in b.items()}
             logits, _ = model.segment(None, b)
             for k, v in scores(logits, b['labels'], b['query']).items():
@@ -301,7 +319,7 @@ def main(argv=None):
     if device.type == 'cuda':
         torch.cuda.set_device(device)
 
-    probe = Episodes(cfg['data'], seed=cfg['seed'], num_aug=cfg['num_aug'], D=cfg['D'])
+    probe = Episodes(cfg['data'], seed=cfg['seed'], num_aug=cfg['num_aug'], D=cfg['D'], holdout=cfg['holdout'])
     mcfg = dict(dict(canvas=probe.C), **cfg['model'])
     if mcfg['canvas'] != probe.C:
         raise ValueError(f"model.canvas {mcfg['canvas']} != N + 1 = {probe.C} of the data")
@@ -320,6 +338,9 @@ def main(argv=None):
     if ck_path.exists():
         ck = torch.load(ck_path, map_location=device, weights_only=False)
         old = {k: v for k, v in ck['meta'].items() if k not in FREE}
+        for k, v in DEFAULTS.items():               # keys added after the checkpoint was written: their defaults
+            if k not in FREE:
+                old.setdefault(k, v)
         new = {k: v for k, v in meta.items() if k not in FREE}
         if old != new:
             raise ValueError(f'{ck_path} was written with another config: '
@@ -404,13 +425,19 @@ def main(argv=None):
             te = time.time()
             with EMAWeights(model, ema):
                 e = evaluate(model, data, device, cfg['eval_groups'])
+                extra = {}
+                for kind in ('held', 'seen') if cfg['holdout'] else ():
+                    h = evaluate(model, data, device, cfg['eval_groups'], kind)
+                    extra.update({f'{kind}_exact': h['exact'], f'{kind}_n': h['n'], f'{kind}_ce': h['test_ce']})
             rec = dict(step=step, exact=e['exact'], n=e['n'], cell=e['cell'] / max(e['n_cell'], 1),
                        cell_eos=e['cell_eos'] / max(e['n_eos'], 1), test_ce=e['test_ce'], sec=time.time() - t0,
-                       eval_sec=time.time() - te)
+                       eval_sec=time.time() - te, **extra)
             elog.write(json.dumps(rec) + '\n')
             elog.flush()
             print(f"[EVAL] step {step} exact {e['exact']}/{e['n']} cell {rec['cell']:.4f} "
-                  f"cell_eos {rec['cell_eos']:.4f} test_ce {rec['test_ce']:.4f} ({rec['eval_sec']:.0f}s)", flush=True)
+                  f"cell_eos {rec['cell_eos']:.4f} test_ce {rec['test_ce']:.4f}"
+                  + ''.join(f" {k} {rec[f'{k}_exact']}/{rec[f'{k}_n']} ({rec[f'{k}_ce']:.3f})" for k in ('held', 'seen') if f'{k}_n' in rec)
+                  + f" ({rec['eval_sec']:.0f}s)", flush=True)
             tmp = ck_path.with_suffix('.tmp')
             torch.save(dict(model=model.state_dict(), ema=ema, opt=opt.state_dict(), step=step, meta=meta), tmp)
             tmp.replace(ck_path)

@@ -38,6 +38,7 @@ loss and backward pass as one CUDA graph (arc/train.py).
 """
 import math
 from dataclasses import dataclass
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -70,6 +71,11 @@ class ModelConfig:
     lam_init: float = 1e-3            # lasso threshold (learned, softplus): lam_floor + softplus(lam_raw)
     lam_floor: float = 0.0            # lower bound of the lasso threshold (the training loss alone drives it to 0)
     lam_learn: bool = True            # False: lambda = lam_floor exactly (no learned part; lam_floor 0 = no sparse LTD)
+    rope_1d: bool = False             # True: positions = the lane's sequence index (else (row, col) on the canvas)
+    rope_fixed: Optional[bool] = None # True: TRM's fixed frequencies, a buffer (None: = rope_1d). 1D: rope_base^(-2i / dh)
+                                      # per pair; 2D: axial, the first dh / 4 pairs on rows, the rest on columns, each
+                                      # rope_base^(-4i / dh). False: learned angles (initialised uniform, as before)
+    rope_base: float = 10000.0
     tau_init: float = 1.0             # read gain
     tau_learn: bool = True            # False: tau stays tau_init (a buffer, no gradient)
     direct_head: bool = True          # False: logits = bias + tau r (the rule head's read only; no classifier(h) path from
@@ -246,8 +252,24 @@ class Coupled(nn.Module):
             self.block.band_coef.normal_(0.0, c.band_coef_std)
         rope_dtype = torch.float64 if self.forward_dtype == torch.float64 else torch.float32
         t = torch.arange(self.T)
-        self.register_buffer('pos_row', (t // C).to(rope_dtype), persistent=False)     # rows 0..2C-1 over the lane
-        self.register_buffer('pos_col', (t % C).to(rope_dtype), persistent=False)
+        fixed = c.rope_1d if c.rope_fixed is None else c.rope_fixed
+        if fixed:                         # TRM's RoPE frequencies, no parameter
+            dh = d // H
+            th = torch.zeros_like(self.block.rope_theta)                       # [H, dh / 2, (row, col)]
+            if c.rope_1d:
+                th[..., 0] = 1.0 / (c.rope_base ** (torch.arange(0, dh, 2, dtype=torch.float64) / dh)).to(th.dtype)
+            else:                         # axial 2D: each axis gets half the pairs, a 1D RoPE of width dh / 2
+                q = dh // 4
+                f = 1.0 / (c.rope_base ** (torch.arange(0, dh // 2, 2, dtype=torch.float64) / (dh // 2))).to(th.dtype)
+                th[:, :q, 0], th[:, q:, 1] = f, f
+            del self.block.rope_theta                                          # after its draw: later draws unchanged
+            self.block.register_buffer('rope_theta', th)
+        if c.rope_1d:
+            self.register_buffer('pos_row', t.to(rope_dtype), persistent=False)
+            self.register_buffer('pos_col', torch.zeros(self.T, dtype=rope_dtype), persistent=False)
+        else:
+            self.register_buffer('pos_row', (t // C).to(rope_dtype), persistent=False)     # rows 0..2C-1 over the lane
+            self.register_buffer('pos_col', (t % C).to(rope_dtype), persistent=False)
         self.w_phi = nn.Linear(d, c.phi, bias=False)
         self.w_fb = nn.Linear(VOCAB, d, bias=False)
         nn.init.zeros_(self.w_fb.weight)                       # the feedback path opens by learning

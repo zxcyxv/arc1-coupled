@@ -1,0 +1,21 @@
+# The bands perception (arc1-coupled arc/model.py) + TRM's puzzle embedding: 16 blocks per segment, the last 10 with
+# gradients, R = 4 bands, traces stored in BF16, 16 segments per lane then replacement (no ACT, no Q head).
+name: recursive_reasoning.bands@Bands
+loss:
+  name: losses@ACTLossHead
+  loss_type: stablemax_cross_entropy
+  act_loss: false
+
+halt_max_steps: 16
+halt_exploration_prob: 0.0
+blocks: 16
+grad_blocks: 10
+bands: 4
+trace_dtype: bfloat16
+rope: 1d                 # TRM's fixed 1D RoPE over the sequence index (10-27)
+
+hidden_size: 512
+num_heads: 8
+expansion: 4
+puzzle_emb_ndim: ${.hidden_size}
+puzzle_emb_len: 16

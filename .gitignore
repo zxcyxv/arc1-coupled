@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 *.pt
 *.tmp
+.venv-trm/
+trm/outputs/
