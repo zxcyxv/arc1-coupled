@@ -69,6 +69,7 @@ class ModelConfig:
     phi: int = 64                     # rule-head feature width
     lam_init: float = 1e-3            # lasso threshold (learned, softplus): lam_floor + softplus(lam_raw)
     lam_floor: float = 0.0            # lower bound of the lasso threshold (the training loss alone drives it to 0)
+    lam_learn: bool = True            # False: lambda = lam_floor exactly (no learned part; lam_floor 0 = no sparse LTD)
     tau_init: float = 1.0             # read gain
     tau_learn: bool = True            # False: tau stays tau_init (a buffer, no gradient)
     direct_head: bool = True          # False: logits = bias + tau r (the rule head's read only; no classifier(h) path from
@@ -251,6 +252,9 @@ class Coupled(nn.Module):
         self.w_fb = nn.Linear(VOCAB, d, bias=False)
         nn.init.zeros_(self.w_fb.weight)                       # the feedback path opens by learning
         self.lam_raw = nn.Parameter(torch.tensor(math.log(math.expm1(c.lam_init))))
+        if not c.lam_learn:                                    # same creation order; the learned part is dropped
+            del self.lam_raw
+            self.register_buffer('lam_raw', torch.tensor(float('-inf')))
         if c.tau_learn:
             self.tau = nn.Parameter(torch.tensor(c.tau_init))
         else:
