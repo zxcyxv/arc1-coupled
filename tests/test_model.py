@@ -347,5 +347,31 @@ class TensorCoreSums(unittest.TestCase):
         for a, b in zip(out['float32'], out['float64']):
             self.assertLessEqual(_rel(a, b), 1e-5)
 
+@unittest.skipUnless(torch.cuda.is_available(), 'CUDA')
+class CompiledLayer(unittest.TestCase):
+    def test_compiled_gradients_canvas_11(self):
+        """Inductor once miscompiled the frame_omega gradient at canvas 11 (O = 121, FP32, some lane counts) when the
+        frames' cos/sin were computed inside the compiled layer: compiled layer = eager, every parameter's gradient."""
+        for L in (4, 16):
+            cfg = ModelConfig(canvas=11, d=128, heads=2, blocks=3, grad_blocks=2, phi=8, bands=2, band_periods=(2.0, 6.0),
+                              frames=8, frame_dim=32, frame_bf16=False, fused_bands=True, amp=False)
+            torch.manual_seed(0)
+            m = Coupled(cfg).cuda()
+            with torch.no_grad():
+                m.w_fb.weight.normal_(0, 0.5)
+            b = {k: v.cuda() for k, v in batch(cfg, groups=L // 4, demos=3).items()}
+            grads = []
+            for compiled in (False, True):
+                m.layer_fn = torch.compile(m.layer, dynamic=False) if compiled else None
+                m.zero_grad()
+                logits, _ = m.segment(None, b)
+                logits.square().mean().backward()
+                grads.append({n: p.grad.clone() for n, p in m.named_parameters() if p.grad is not None})
+            for n, g in grads[0].items():
+                err = ((grads[1][n] - g).norm() / g.norm().clamp_min(1e-12)).item()
+                self.assertLess(err, 1e-3, f'{n} L={L}')
+            torch._dynamo.reset()
+
+
 if __name__ == '__main__':
     unittest.main()

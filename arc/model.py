@@ -30,7 +30,7 @@ lasso over (Theta, Gamma), one proximal step on each block in turn. Gamma has no
 A segment runs `blocks` blocks from the carry, the last `grad_blocks` with gradients, and returns the detached carry.
 With fused_bands (CUDA, FP32 forward) the trace update runs as one Triton kernel each way (arc/bands_kernel.py), and so
 do the unit q/k, their RoPE and the head split (arc/rope_kernel.py): the same formulas with less memory traffic. The RoPE
-tables (cos, sin of the learned angles) are computed once per segment. The token sums (S, W, read) are an autograd
+tables (cos, sin of the learned angles) and the frames' tables are computed once per segment. The token sums (S, W, read) are an autograd
 Function (BandsFused / BandsRead) whose backward pass stays FP32 inside the compiled, autocast block; on CUDA in FP32 they
 are 3xTF32 tensor-core Triton kernels (arc/sums_kernel.py): FP32-level accuracy, FP32 accumulation. The trainer compiles
 one layer (block_step and the rule head after it, `layer`) with static shapes, and captures each micro-batch's segment,
@@ -353,18 +353,28 @@ class Coupled(nn.Module):
         x = self.w_phi(h[:, self.O:].to(self.w_phi.weight.dtype))
         return x / (x.norm(dim=-1, keepdim=True) + 1e-6)
 
-    def frame_rope(self, x):
-        """x [L,K,O,E] rotated per (axis, frequency) pair by omega_k,axis,f times the cell's canvas row / column."""
-        K, O, E = x.shape[1], x.shape[2], x.shape[3]
-        ang = torch.einsum('oa,kaf->koaf', self.frame_pos.to(x.dtype), self.frame_omega.to(x.dtype)).reshape(K, O, E // 2)
-        cos, sin = ang.cos(), ang.sin()
-        x1, x2 = x[..., 0::2], x[..., 1::2]
-        return torch.stack([x1 * cos - x2 * sin, x1 * sin + x2 * cos], -1).flatten(-2)
+    def frame_tables(self, dtype=None):
+        """cos, sin [K,O,E] of the frames' angles omega_k,axis,f times the cell's canvas row / column, each repeated for
+        the two channels of its pair. They depend only on frame_omega, so a segment computes them once (eager) and the
+        compiled layer takes them as inputs: torch 2.11's inductor miscompiled the frame_omega gradient (the reduction
+        through cos/sin over the cells) at O = 121 (canvas 11, FP32; off by ~100%, depending on the lane count)."""
+        dt = dtype or self.frame_omega.dtype
+        K, E = self.cfg.frames, self.cfg.frame_dim
+        ang = torch.einsum('oa,kaf->koaf', self.frame_pos.to(dt), self.frame_omega.to(dt)).reshape(K, self.O, E // 2)
+        return ang.cos().repeat_interleave(2, -1), ang.sin().repeat_interleave(2, -1)
 
-    def frame_colours(self, h, x_in, amp=None):
+    def frame_rope(self, x, ftab=None):
+        """x [L,K,O,E] rotated per (axis, frequency) pair: x cos + rot(x) sin (the products and sums of the pair form
+        (x1 cos - x2 sin, x1 sin + x2 cos), so the same values); ftab = frame_tables() (None: computed here)."""
+        cos, sin = self.frame_tables(x.dtype) if ftab is None else (t.to(x.dtype) for t in ftab)
+        x1, x2 = x[..., 0::2], x[..., 1::2]
+        return x * cos + torch.stack([-x2, x1], -1).flatten(-2) * sin
+
+    def frame_colours(self, h, x_in, amp=None, ftab=None):
         """kappa [L,F,O,13] of the output-canvas cells from h [L,T,d] and the input-canvas tokens x_in [L,O]; colour
         cells are tokens 2..11 (pad and EOS are never read). The softmax read runs through SDPA (no [O,O] tensor kept
-        for the backward pass on CUDA). amp: self.amp(h.device), passed by segment (None: computed here)."""
+        for the backward pass on CUDA). amp: self.amp(h.device), passed by segment (None: computed here); ftab:
+        frame_tables(), passed by segment (None: computed here)."""
         c = self.cfg
         L, O, K, E = h.shape[0], self.O, c.frames, c.frame_dim
         dt = self.w_fq.weight.dtype
@@ -373,8 +383,10 @@ class Coupled(nn.Module):
         bf16 = (self.amp(h.device) if amp is None else amp) and c.frame_bf16
         proj = ((lambda lin, x: F.linear(x.bfloat16(), lin.weight.bfloat16()).to(dt)) if bf16
                 else (lambda lin, x: lin(x.to(dt))))
-        q = self.frame_rope(proj(self.w_fq, h[:, O:]).view(L, O, K, E).transpose(1, 2))
-        k = self.frame_rope(proj(self.w_fk, h[:, :O]).view(L, O, K, E).transpose(1, 2))
+        if ftab is None:
+            ftab = self.frame_tables(dt)
+        q = self.frame_rope(proj(self.w_fq, h[:, O:]).view(L, O, K, E).transpose(1, 2), ftab)
+        k = self.frame_rope(proj(self.w_fk, h[:, :O]).view(L, O, K, E).transpose(1, 2), ftab)
         bias = torch.where(live, 0.0, -1e4).to(dt)
         if bf16:
             # BF16 flash attention: the key mask rides in one extra q/k channel (q 1, k 0 or -1e4) and q carries the
@@ -427,14 +439,14 @@ class Coupled(nn.Module):
         gg = (theta[:, None] * Ck).sum((-2, -1)) + (H * gam[:, None]).sum(-1) - sv
         return theta, soft(gam - gg, lam)
 
-    def rule_head(self, h, x_in, y, m, demo, group, theta, gam, amp):
+    def rule_head(self, h, x_in, y, m, demo, group, theta, gam, amp, ftab=None):
         """The rule head after one block, in FP32 (FP64 on the test path): phi, kappa, the leave-one-out statistics,
         one proximal step and the read. Returns the new theta, gam and r [L,O,13]. Static shapes and no host sync, so
         the trainer compiles it (inside layer_fn)."""
         c = self.cfg
         with torch.autocast('cuda', enabled=False):
             phi = self.features(h)
-            kap = self.frame_colours(h, x_in, amp) if c.frames else None
+            kap = self.frame_colours(h, x_in, amp, ftab) if c.frames else None
             G, S, *ext = self.statistics(phi, y, m, demo, group, kap=kap)
             if c.frames:
                 theta, gam = self.step(theta, G, S, gam, ext)
@@ -449,12 +461,13 @@ class Coupled(nn.Module):
         """One block and the rule head after it: the feedback fb = W_fb r of the previous head (FP32, as the caller's
         autocast state), block_step under BF16 autocast (amp), rule_head (FP32). Returns the new h, ek, ev, w, theta,
         gam, r. The trainer compiles this whole layer as one region (layer_fn): h feeds both the head and the next
-        layer, so the backward pass sums its two gradients inside the compiled graph instead of a separate add."""
+        layer, so the backward pass sums its two gradients inside the compiled graph instead of a separate add.
+        tables = rope_tables() (+ frame_tables() with frames), computed once per segment."""
         fb = self.w_fb(r).to(emb.dtype) if head else None
         with torch.autocast('cuda', dtype=torch.bfloat16, enabled=amp, cache_enabled=False):
-            h, ek, ev, w = self.block_step(h, emb, fb, ek, ev, w, tables)
+            h, ek, ev, w = self.block_step(h, emb, fb, ek, ev, w, tables[:2])
         if head:
-            theta, gam, r = self.rule_head(h, x_in, y, m, demo, group, theta, gam, amp)
+            theta, gam, r = self.rule_head(h, x_in, y, m, demo, group, theta, gam, amp, tables[2:] or None)
         return h, ek, ev, w, theta, gam, r
 
     # ------------------------------------------------------------------ segments
@@ -491,7 +504,7 @@ class Coupled(nn.Module):
         fn = self.layer_fn or self.layer
         with torch.autocast('cuda', dtype=torch.bfloat16, enabled=amp, cache_enabled=False):
             emb = self.embed(x)
-        tables = self.rope_tables()
+        tables = self.rope_tables() + (self.frame_tables() if c.frames else ())   # once per segment
         for i in range(c.blocks):
             with torch.set_grad_enabled(torch.is_grad_enabled() and i >= first_grad):
                 if i == first_grad:                            # the no-grad blocks' head state enters as a constant
