@@ -71,6 +71,8 @@ class ModelConfig:
     lam_floor: float = 0.0            # lower bound of the lasso threshold (the training loss alone drives it to 0)
     tau_init: float = 1.0             # read gain
     tau_learn: bool = True            # False: tau stays tau_init (a buffer, no gradient)
+    direct_head: bool = True          # False: logits = bias + tau r (the rule head's read only; no classifier(h) path from
+                                      # the query's own perception to the output, as in cmap)
     frames: int = 0                   # K > 0: Gamma over K softmax frames + the grid histogram
     frame_dim: int = 32               # q/k width of a frame (frame_dim / 4 frequencies per axis)
     frame_bf16: bool = True           # with amp on CUDA: the frames' softmax read as BF16 flash attention
@@ -498,7 +500,10 @@ class Coupled(nn.Module):
                 h, ek, ev, w, theta, gam, r = fn(h, emb, ek, ev, w, tables, theta, gam, r, x_in, y, m, demo, group,
                                                  amp, head)
         with torch.autocast('cuda', enabled=False):
-            logits = self.classifier(h[:, self.O:].to(dt))
+            if c.direct_head or not head:
+                logits = self.classifier(h[:, self.O:].to(dt))
+            else:
+                logits = self.classifier.bias.expand(h.shape[0], self.O, VOCAB)
             if head:
                 logits = logits + self.tau * r
         new = dict(h=h, ek=ek, ev=ev, w=w, theta=theta, gam=gam, r=r)
