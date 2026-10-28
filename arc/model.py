@@ -21,6 +21,8 @@ Rule head after every block: phi(o) = unit(W_phi h(o)) on the output-canvas cell
 of the other demonstration lanes of its group (G = sum phi phi^T / n, S = sum onehot(y) phi^T / n) and one proximal step
 Theta <- soft(Theta - (Theta G - S), lam) (valid at step 1: lambda_max(G) <= tr G = 1); read r(o) = Theta phi(o), fed
 back through W_fb into the next block's output-canvas injection; logits = classifier(h) + tau r.
+rule_heads = H > 1: heads 1..H-1 are further rule synapses of the same form, each with its own phi_h = unit(W_phi,h h),
+lasso Theta_h (lambda_h, step 1) and feedback W_fb,h r_h added to the injection; logits keep head 0's tau r.
 
 frames = K > 0 (cmap's Gamma term): F = K + 1 frame colours per output cell, kappa_0 = the colour histogram of the
 lane's input grid, kappa_k = a softmax read of the input grid's colour cells from the output cell (learned 2D RoPE on
@@ -83,6 +85,8 @@ class ModelConfig:
     out_ffn: bool = False             # True: logits = classifier(FFN_out(base + sqrt(d) W_fb r)) on the output canvas after
                                       # the last head (a dedicated post-norm SwiGLU FFN, no attention), no tau r term;
                                       # base = h with direct_head, else sqrt(d) emb(unknown) (a constant: r alone decides)
+    rule_heads: int = 1               # independent rule synapses: head 0 as above (with Gamma), heads 1.. a Theta each
+                                      # (own phi, lambda, feedback W_fb); Theta [L,13,H p] and r [L,O,13 H] carry them all
     frames: int = 0                   # K > 0: Gamma over K softmax frames + the grid histogram
     frame_dim: int = 32               # q/k width of a frame (frame_dim / 4 frequencies per axis)
     frame_fixed: bool = False         # True: the frames' frequencies stay at their initial values (a buffer, no gradient)
@@ -303,6 +307,12 @@ class Coupled(nn.Module):
             self.out_down = nn.Linear(inter, d, bias=False)
             with torch.no_grad():
                 self.out_down.weight.zero_()
+        if c.rule_heads > 1:                                   # created last: the draws above are unchanged
+            X = c.rule_heads - 1
+            self.w_phi_x = nn.Linear(d, X * c.phi, bias=False)
+            self.w_fb_x = nn.Linear(X * VOCAB, d, bias=False)
+            nn.init.zeros_(self.w_fb_x.weight)
+            self.lam_raw_x = nn.Parameter(torch.full((X,), math.log(math.expm1(c.lam_init))))
         self.to(self.forward_dtype)
         self.layer_fn = None                                   # compiled layer (trainer, evaluation)
 
@@ -393,6 +403,16 @@ class Coupled(nn.Module):
         x = self.w_phi(h[:, self.O:].to(self.w_phi.weight.dtype))
         return x / (x.norm(dim=-1, keepdim=True) + 1e-6)
 
+    def features_x(self, h):
+        """phi of rule heads 1.. [L,O,H-1,phi], each unit length."""
+        x = self.w_phi_x(h[:, self.O:].to(self.w_phi_x.weight.dtype)).unflatten(-1, (-1, self.cfg.phi))
+        return x / (x.norm(dim=-1, keepdim=True) + 1e-6)
+
+    def feedback(self, r):
+        """W_fb r of every rule head, [L,O,d] from r [L,O,13 H]."""
+        fb = self.w_fb(r[..., :VOCAB])
+        return fb if self.cfg.rule_heads == 1 else fb + self.w_fb_x(r[..., VOCAB:])
+
     def frame_tables(self, dtype=None):
         """cos, sin [K,O,E] of the frames' angles omega_k,axis,f times the cell's canvas row / column, each repeated for
         the two channels of its pair. They depend only on frame_omega, so a segment computes them once (eager) and the
@@ -444,7 +464,7 @@ class Coupled(nn.Module):
         hist = col.sum(1) / live.sum(1, keepdim=True).clamp_min(1).to(dt)
         return torch.cat([hist[:, None, None].expand(L, 1, O, VOCAB), kap], 1) / math.sqrt(K + 1)
 
-    def statistics(self, phi, y, m, demo, group, ng=None, kap=None):
+    def statistics(self, phi, y, m, demo, group, ng=None, kap=None, phx=None):
         """Leave-one-out statistics per lane over the OTHER demonstration lanes of its group: G [L,p,p], S [L,13,p]
         and, with frame colours kap [L,F,O,13], C [L,F,13,p], H [L,F,F], s [L,F]. phi [L,O,p], y one-hot [L,O,13],
         m [L,O] labelled cells, demo [L], group [L] (any integer labels; ng is not needed and ignored). The sums over
@@ -458,6 +478,8 @@ class Coupled(nn.Module):
             wk = w[:, None, :, None] * kap
             parts += [torch.einsum('lkoc,lop->lkcp', wk, phi), (wk[:, :, None] * kap[:, None]).sum((-2, -1)),
                       (wk * y[:, None]).sum((-2, -1))]
+        if phx is not None:                                    # rule heads 1..: Gx [L,H-1,p,p], Sx [L,H-1,13,p] last
+            parts += [torch.einsum('lo,lohp,lohq->lhpq', w, phx, phx), torch.einsum('lo,loc,lohp->lhcp', w, y, phx)]
         nl = w.sum(-1)
         L = group.shape[0]
         others = (group[:, None] == group[None, :]) & ~torch.eye(L, dtype=torch.bool, device=group.device)
@@ -487,7 +509,12 @@ class Coupled(nn.Module):
         with torch.autocast('cuda', enabled=False):
             phi = self.features(h)
             kap = self.frame_colours(h, x_in, amp, ftab) if c.frames else None
-            G, S, *ext = self.statistics(phi, y, m, demo, group, kap=kap)
+            phx = self.features_x(h) if c.rule_heads > 1 else None
+            G, S, *ext = self.statistics(phi, y, m, demo, group, kap=kap, phx=phx)
+            if phx is not None:
+                Gx, Sx = ext[-2:]
+                ext = ext[:-2]
+                theta, thx = theta[..., :c.phi], theta[..., c.phi:]
             if c.frames:
                 theta, gam = self.step(theta, G, S, gam, ext)
             else:
@@ -495,6 +522,11 @@ class Coupled(nn.Module):
             r = torch.einsum('lcp,lop->loc', theta, phi)
             if c.frames:
                 r = r + (gam[..., None, None] * kap).sum(1)
+            if phx is not None:                                # heads 1..: one proximal step each (step 1), no Gamma
+                th = thx.unflatten(-1, (-1, c.phi)).transpose(1, 2)               # [L,H-1,13,phi]
+                th = soft(th - (th @ Gx - Sx), c.lam_floor + F.softplus(self.lam_raw_x)[:, None, None])
+                theta = torch.cat([theta, th.transpose(1, 2).flatten(-2)], -1)
+                r = torch.cat([r, torch.einsum('lhcp,lohp->lohc', th, phx).flatten(-2)], -1)
         return theta, gam, r
 
     def layer(self, h, emb, ek, ev, w, tables, theta, gam, r, x_in, y, m, demo, group, amp, head=True):
@@ -503,7 +535,7 @@ class Coupled(nn.Module):
         gam, r. The trainer compiles this whole layer as one region (layer_fn): h feeds both the head and the next
         layer, so the backward pass sums its two gradients inside the compiled graph instead of a separate add.
         tables = rope_tables() (+ frame_tables() with frames), computed once per segment."""
-        fb = self.w_fb(r).to(emb.dtype) if head else None
+        fb = self.feedback(r).to(emb.dtype) if head else None
         with torch.autocast('cuda', dtype=torch.bfloat16, enabled=amp, cache_enabled=False):
             h, ek, ev, w = self.block_step(h, emb, fb, ek, ev, w, tables[:2])
         if head:
@@ -519,8 +551,8 @@ class Coupled(nn.Module):
         zt = lambda *s: torch.zeros(L, *s, device=device, dtype=tdt)
         return dict(h=self.init_hidden.to(device).expand(L, self.T, self.d).clone(),
                     ek=zt(self.H, self.T, 2 * self.dh * c.bands), ev=zt(self.H, self.T, 2 * self.dh * c.bands),
-                    w=z(self.H, self.dh, self.dh), theta=z(VOCAB, c.phi),
-                    gam=z(c.frames + 1) if c.frames else None, r=z(self.O, VOCAB))
+                    w=z(self.H, self.dh, self.dh), theta=z(VOCAB, c.phi * c.rule_heads),
+                    gam=z(c.frames + 1) if c.frames else None, r=z(self.O, VOCAB * c.rule_heads))
 
     def segment(self, carry, batch, head=True):
         """One segment from `carry` (None: fresh lanes). batch: inputs, labels [L,T] (labels only on the output
@@ -555,7 +587,7 @@ class Coupled(nn.Module):
         if c.out_ffn and head:                                 # the last read through one FFN, as a block injects it
             with torch.autocast('cuda', dtype=torch.bfloat16, enabled=amp, cache_enabled=False):
                 base = h[:, self.O:] if c.direct_head else self.embed_scale * emb[:, self.O:].to(h.dtype)
-                v = rms_norm(base + self.embed_scale * self.w_fb(r).to(h.dtype))
+                v = rms_norm(base + self.embed_scale * self.feedback(r).to(h.dtype))
                 g, a = self.out_gate_up(v).chunk(2, dim=-1)
                 h_out = rms_norm(v + self.out_down(F.silu(g) * a))
         with torch.autocast('cuda', enabled=False):
@@ -566,6 +598,6 @@ class Coupled(nn.Module):
             else:
                 logits = self.classifier.bias.expand(h.shape[0], self.O, VOCAB)
             if head and not c.out_ffn:
-                logits = logits + self.tau * r
+                logits = logits + self.tau * r[..., :VOCAB]
         new = dict(h=h, ek=ek, ev=ev, w=w, theta=theta, gam=gam, r=r)
         return logits, {k: (None if v is None else v.detach()) for k, v in new.items()}

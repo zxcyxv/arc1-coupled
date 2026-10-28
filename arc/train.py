@@ -138,7 +138,7 @@ def decay_groups(model, cfg):
     """Weight decay on the projection, FFN, embedding and classifier matrices; none on biases, scalars, the RoPE angles,
     the band poles and coefficients and the frame frequencies (the bands model's rule, lt/train.py create_optimizers of
     zxcyxv/something): decay pulls those towards 0, i.e. towards short memories and coarse positions."""
-    decay = lambda n, p: cfg['decay_all'] or (cfg['decay_lam'] and n == 'lam_raw') or (p.ndim >= 2 and not any(s in n for s in NO_DECAY))
+    decay = lambda n, p: cfg['decay_all'] or (cfg['decay_lam'] and n in ('lam_raw', 'lam_raw_x')) or (p.ndim >= 2 and not any(s in n for s in NO_DECAY))
     named = list(model.named_parameters())
     return [{'params': [p for n, p in named if not decay(n, p)], 'weight_decay': 0.0},
             {'params': [p for n, p in named if decay(n, p)], 'weight_decay': cfg['weight_decay']}]

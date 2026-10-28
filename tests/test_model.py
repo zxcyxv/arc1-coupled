@@ -175,6 +175,61 @@ class Lasso(unittest.TestCase):
         self.assertEqual(float(kap[..., [0, 1, 12]].abs().max()), 0.0)
 
 
+class RuleHeads(unittest.TestCase):
+    def test_closed_extra_heads_change_nothing(self):
+        """Extra rule heads are created last and their feedback starts at 0: the same seed gives head 0's model."""
+        for frames in (0, 3):
+            b = batch(small(frames=frames, frame_dim=8))
+            m1, m3 = model(small(frames=frames, frame_dim=8)), model(small(frames=frames, frame_dim=8, rule_heads=3))
+            self.assertEqual(m3.load_state_dict(m1.state_dict(), strict=False).unexpected_keys, [])
+            with torch.no_grad():
+                a, ca = m1.segment(None, b)
+                x, cx = m3.segment(None, b)
+            torch.testing.assert_close(x, a, rtol=0, atol=1e-13)
+            torch.testing.assert_close(cx['theta'][..., :8], ca['theta'], rtol=0, atol=1e-13)
+            self.assertEqual(tuple(cx['theta'].shape[1:]), (VOCAB, 24))
+            self.assertEqual(tuple(cx['r'].shape[1:]), (9, 3 * VOCAB))
+            self.assertGreater(float(cx['theta'][..., 8:].abs().max()), 0.0)          # the extra heads still learn
+
+    def test_each_extra_head_is_its_own_lasso(self):
+        """Head h's Theta after a segment = the single-head recursion on its own phi_h (same h trajectory)."""
+        cfg = small(rule_heads=3)
+        m = model(cfg)
+        with torch.no_grad():
+            m.lam_raw_x.fill_(-6.0)
+        b = batch(cfg)
+        rec = []
+        orig = m.features_x
+        m.features_x = lambda h: rec.append(orig(h)) or rec[-1]
+        with torch.no_grad():
+            _, carry = m.segment(None, b)
+        y = F.one_hot(b['labels'][:, 9:].long(), VOCAB).double()
+        mk = (b['labels'][:, 9:] != PAD).double()
+        lam = float(F.softplus(m.lam_raw_x[0]))
+        for hd in range(2):
+            th = torch.zeros(len(y), VOCAB, cfg.phi, dtype=torch.float64)
+            for phx in rec:
+                G, S = m.statistics(phx[:, :, hd], y, mk, b['demo'].double(), b['group'])
+                th = torch.sign(th - (th @ G - S)) * F.relu((th - (th @ G - S)).abs() - lam)
+            torch.testing.assert_close(carry['theta'][..., 8 * (hd + 1):8 * (hd + 2)], th, rtol=0, atol=1e-12)
+
+    def test_query_answer_never_read(self):
+        cfg = small(frames=3, frame_dim=8, rule_heads=3)
+        m = model(cfg)
+        with torch.no_grad():
+            m.w_fb_x.weight.normal_(0, 0.5)
+            m.lam_raw_x.fill_(-6.0)
+        b = batch(cfg)
+        b2 = {k: v.clone() for k, v in b.items()}
+        q = b['query']
+        b2['labels'][q] = torch.randint(1, VOCAB, b2['labels'][q].shape)
+        with torch.no_grad():
+            a = m.segment(None, b)[0]
+            torch.testing.assert_close(a[q], m.segment(None, b2)[0][q], rtol=0, atol=0)
+            m.w_fb_x.weight.zero_()
+            self.assertFalse(torch.allclose(a, m.segment(None, b)[0]))                # the extra feedback acts
+
+
 class BandsGradients(unittest.TestCase):
     def test_bands_read_backward(self):
         """BandsRead's written-out backward pass (S, W and the read) against autograd's numerical gradient."""
