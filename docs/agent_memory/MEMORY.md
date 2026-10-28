@@ -1,0 +1,8 @@
+- [ARC-1 switch rule](arc1-switch-rule.md) — (superseded 10-26) old 10-25 run plan; standing push/NaN authority still applies
+- [Early generalization gap](early-generalization-gap.md) — early train/eval gap is normal; judge only at 10k+ vote evals
+- [External doc style](external-doc-style.md) — no internal provenance caveats in docs meant for other researchers
+- [No multiple seeds](no-multi-seed.md) — never replicate seeds; single decisive runs only
+- [Decisive experiments](decisive-experiments.md) — binary causal interventions trained from scratch; no eval-time ablations or graded knobs
+- [Paper thesis](paper-thesis.md) — agreed 10-28: STDP over recursion (main) + TEM factorization; dropped RoPE/holdout; gaps
+- [State 2026-10-28](state-2026-10-28.md) — GPU work ended, ARC-2 submitted at 0%, handoff docs, exact framing of TRM comparisons
+- [State 2026-10-27](state-2026-10-27.md) — (superseded by 10-28) RoPE 1D finding, holdout, ARC-2 coupled 1D run
