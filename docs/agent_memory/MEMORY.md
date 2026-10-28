@@ -6,3 +6,4 @@
 - [Paper thesis](paper-thesis.md) — agreed 10-28: STDP over recursion (main) + TEM factorization; dropped RoPE/holdout; gaps
 - [State 2026-10-28](state-2026-10-28.md) — ARC-2 0%, <=10 depth result (30/10 rises, 8/4 plateaus), loops-1 extrapolation fails, next-instance experiments
 - [State 2026-10-27](state-2026-10-27.md) — (superseded by 10-28) RoPE 1D finding, holdout, ARC-2 coupled 1D run
+- [No workflows](no-workflows.md) — don't launch Workflow runs unless asked, even with ultracode on
