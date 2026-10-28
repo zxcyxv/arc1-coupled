@@ -1,0 +1,6 @@
+instances 3072; consistent t per instance: mean 1.00; fewest moves to r = 1: mean 3.50, max 7; r of a wrong t: mean 0.521, 99th percentile 0.792
+random     {} | success@32 0.174 @64 0.301 @256 0.765 | median steps 125 mean 136.5 | revisit 0.486 | relapse-free 0.020
+greedy     {'beta': 5.0} | success@32 0.474 @64 0.716 @256 0.990 | median steps 35 mean 51.6 | revisit 0.347 | relapse-free 0.292
+hebb       {'beta': 5.0, 'eta': 0.01, 'kappa': 0.5} | success@32 0.450 @64 0.643 @256 0.864 | median steps 40 mean 74.2 | revisit 0.436 | relapse-free 0.522
+dopamine   {'beta': 20.0, 'eta': 3.0, 'kappa': 0.95, 'b': 0.2} | success@32 0.714 @64 0.963 @256 1.000 | median steps 20 mean 24.0 | revisit 0.089 | relapse-free 0.045
+dopamine0  {'beta': 20.0, 'eta': 3.0, 'b': 0.2} | success@32 0.693 @64 0.955 @256 1.000 | median steps 21 mean 25.4 | revisit 0.108 | relapse-free 0.091

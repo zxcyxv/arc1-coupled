@@ -1,0 +1,3 @@
+[SMALL] params 3,723,606 model {'canvas': 11, 'd': 512, 'heads': 8, 'blocks': 8, 'grad_blocks': 4, 'bands': 4, 'frames': 8, 'fused_bands': True, 'trace_dtype': 'float32', 'frame_bf16': False, 'direct_head': False, 'lam_learn': False, 'lam_floor': 0.01, 'ridge_eps': 0.001} tasks 255 test pairs 278 device NVIDIA H100 80GB HBM3
+[SMALL] step 100 loss 2.3144 cell 0.5127 exact 0.000 gn 1.88 tau 1.001 lam 1.00e-02 55.0 ms/step 5.2GiB
+[SMALL] step 200 loss 2.2153 cell 0.4378 exact 0.000 gn 1.94 tau 1.002 lam 1.00e-02 53.7 ms/step 5.2GiB

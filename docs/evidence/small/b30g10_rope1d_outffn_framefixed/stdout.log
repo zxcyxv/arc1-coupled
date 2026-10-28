@@ -1,0 +1,1 @@
+[SMALL] params 6,082,263 model {'canvas': 11, 'd': 512, 'heads': 8, 'blocks': 30, 'grad_blocks': 10, 'bands': 4, 'frames': 8, 'fused_bands': True, 'trace_dtype': 'float32', 'frame_bf16': False, 'rope_1d': True, 'out_ffn': True, 'frame_fixed': True} tasks 255 test pairs 278 device NVIDIA H100 80GB HBM3 x 4 ranks, 16 lanes each

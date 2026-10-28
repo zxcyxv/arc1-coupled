@@ -80,9 +80,13 @@ class ModelConfig:
     tau_learn: bool = True            # False: tau stays tau_init (a buffer, no gradient)
     direct_head: bool = True          # False: logits = bias + tau r (the rule head's read only; no classifier(h) path from
                                       # the query's own perception to the output, as in cmap)
+    out_ffn: bool = False             # True: logits = classifier(FFN_out(base + sqrt(d) W_fb r)) on the output canvas after
+                                      # the last head (a dedicated post-norm SwiGLU FFN, no attention), no tau r term;
+                                      # base = h with direct_head, else sqrt(d) emb(unknown) (a constant: r alone decides)
     frames: int = 0                   # K > 0: Gamma over K softmax frames + the grid histogram
     frame_dim: int = 32               # q/k width of a frame (frame_dim / 4 frequencies per axis)
-    frame_bf16: bool = True           # with amp on CUDA: the frames' softmax read as BF16 flash attention
+    frame_fixed: bool = False         # True: the frames' frequencies stay at their initial values (a buffer, no gradient)
+    frame_bf16: bool = True          # with amp on CUDA: the frames' softmax read as BF16 flash attention
     trace_dtype: str = 'float32'      # E_K, E_V between blocks with an FP32 forward: float32, bfloat16 or float16;
                                       # every update is computed in FP32
     fused_bands: bool = False         # CUDA FP32: the trace update as one Triton kernel each way (arc/bands_kernel.py)
@@ -286,9 +290,19 @@ class Coupled(nn.Module):
             self.w_fq = nn.Linear(d, K * E, bias=False)
             self.w_fk = nn.Linear(d, K * E, bias=False)
             p = torch.logspace(math.log10(2.0), math.log10(4.0 * C), E // 4)     # periods 2 .. 4 C cells
-            self.frame_omega = nn.Parameter((2 * math.pi / p)[None, None].repeat(K, 2, 1))   # [K, axis, freq]
+            omega = (2 * math.pi / p)[None, None].repeat(K, 2, 1)                  # [K, axis, freq]
+            if c.frame_fixed:
+                self.register_buffer('frame_omega', omega)
+            else:
+                self.frame_omega = nn.Parameter(omega)
             r, cc = torch.meshgrid(torch.arange(C), torch.arange(C), indexing='ij')
             self.register_buffer('frame_pos', torch.stack([r, cc], -1).reshape(-1, 2).float(), persistent=False)
+        if c.out_ffn:                                          # created last: the draws above are unchanged
+            inter = int(c.mlp_expansion * d * 2 / 3 + 255) // 256 * 256
+            self.out_gate_up = nn.Linear(d, 2 * inter, bias=False)
+            self.out_down = nn.Linear(inter, d, bias=False)
+            with torch.no_grad():
+                self.out_down.weight.zero_()
         self.to(self.forward_dtype)
         self.layer_fn = None                                   # compiled layer (trainer, evaluation)
 
@@ -538,12 +552,20 @@ class Coupled(nn.Module):
                     gam = None if gam is None else gam.detach()
                 h, ek, ev, w, theta, gam, r = fn(h, emb, ek, ev, w, tables, theta, gam, r, x_in, y, m, demo, group,
                                                  amp, head)
+        if c.out_ffn and head:                                 # the last read through one FFN, as a block injects it
+            with torch.autocast('cuda', dtype=torch.bfloat16, enabled=amp, cache_enabled=False):
+                base = h[:, self.O:] if c.direct_head else self.embed_scale * emb[:, self.O:].to(h.dtype)
+                v = rms_norm(base + self.embed_scale * self.w_fb(r).to(h.dtype))
+                g, a = self.out_gate_up(v).chunk(2, dim=-1)
+                h_out = rms_norm(v + self.out_down(F.silu(g) * a))
         with torch.autocast('cuda', enabled=False):
-            if c.direct_head or not head:
+            if c.out_ffn and head:
+                logits = self.classifier(h_out.to(dt))
+            elif c.direct_head or not head:
                 logits = self.classifier(h[:, self.O:].to(dt))
             else:
                 logits = self.classifier.bias.expand(h.shape[0], self.O, VOCAB)
-            if head:
+            if head and not c.out_ffn:
                 logits = logits + self.tau * r
         new = dict(h=h, ek=ek, ev=ev, w=w, theta=theta, gam=gam, r=r)
         return logits, {k: (None if v is None else v.detach()) for k, v in new.items()}

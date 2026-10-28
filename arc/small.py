@@ -22,6 +22,10 @@ clip, a step with a non-finite gradient norm is skipped (as the old harness), et
 the parameters for evaluation. Evaluation every eval_every steps with the EMA weights: exact = every labelled cell
 right (EOS included), cell = accuracy inside the true grid, cell_eos = with the EOS cells.
 
+Several GPUs (torchrun --nproc_per_node=N -m arc.small ...): each rank draws batch / N lanes of its own groups (rank 0
+the single-GPU stream, rank r > 0 a stream seeded with (seed + step, r)), the flat gradients are summed over ranks before
+the clip, so a step is one optimizer update on batch lanes; rank 0 logs, evaluates and checkpoints.
+
 OUT/train.jsonl, OUT/eval.jsonl, OUT/config.json; OUT/last.pt (model, EMA, optimizer, step) at every evaluation.
 Rerunning with the same --out resumes from last.pt (the data stream is reseeded with seed + step, as the old harness);
 a different config is refused.
@@ -29,11 +33,13 @@ a different config is refused.
 import argparse
 import json
 import math
+import os
 import time
 from pathlib import Path
 
 import numpy as np
 import torch
+import torch.distributed as dist
 
 from .evaluate import log_stablemax
 from .model import EOS, PAD, UNKNOWN, Coupled, ModelConfig
@@ -315,9 +321,19 @@ def main(argv=None):
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
     torch.set_float32_matmul_precision('highest')
-    device = torch.device(args.device or ('cuda:0' if torch.cuda.is_available() else 'cpu'))
+    ws = int(os.environ.get('WORLD_SIZE', 1))
+    rank = int(os.environ.get('RANK', 0))
+    if ws > 1:
+        device = torch.device(f"cuda:{int(os.environ['LOCAL_RANK'])}")
+        torch.cuda.set_device(device)
+        dist.init_process_group('nccl', device_id=device)
+        if cfg['batch'] % ws:
+            raise ValueError(f"batch {cfg['batch']} is not a multiple of {ws} ranks")
+    else:
+        device = torch.device(args.device or ('cuda:0' if torch.cuda.is_available() else 'cpu'))
     if device.type == 'cuda':
         torch.cuda.set_device(device)
+    lanes = cfg['batch'] // ws                                   # this rank's lanes per step
 
     probe = Episodes(cfg['data'], seed=cfg['seed'], num_aug=cfg['num_aug'], D=cfg['D'], holdout=cfg['holdout'])
     mcfg = dict(dict(canvas=probe.C), **cfg['model'])
@@ -333,6 +349,8 @@ def main(argv=None):
     sha = __import__('hashlib').sha256(Path(cfg['data']).read_bytes()).hexdigest()
     meta = dict(cfg, model=mcfg, data_sha=sha, params=n_par, tasks=len(data.tasks), test_pairs=data.n_test,
                 torch=torch.__version__, gpu=torch.cuda.get_device_name(device) if device.type == 'cuda' else 'cpu')
+    if ws > 1:
+        meta['ranks'] = ws
     start = 1
     ck_path = out / 'last.pt'
     if ck_path.exists():
@@ -349,11 +367,13 @@ def main(argv=None):
         opt.load_state_dict(ck['opt'])
         ema = {n: t.to(device) for n, t in ck['ema'].items()}
         start = ck['step'] + 1
-        print(f'[SMALL] resumed from step {ck["step"]} (data stream reseeded)', flush=True)
+        if rank == 0:
+            print(f'[SMALL] resumed from step {ck["step"]} (data stream reseeded)', flush=True)
         del ck
-    (out / 'config.json').write_text(json.dumps(meta, indent=1) + '\n')
-    print(f"[SMALL] params {n_par:,} model {mcfg} tasks {meta['tasks']} test pairs {meta['test_pairs']} "
-          f"device {meta['gpu']}", flush=True)
+    if rank == 0:
+        (out / 'config.json').write_text(json.dumps(meta, indent=1) + '\n')
+        print(f"[SMALL] params {n_par:,} model {mcfg} tasks {meta['tasks']} test pairs {meta['test_pairs']} "
+              f"device {meta['gpu']}" + (f" x {ws} ranks, {lanes} lanes each" if ws > 1 else ''), flush=True)
 
     cuda = device.type == 'cuda'
     if cfg['compile'] and cuda:
@@ -365,8 +385,8 @@ def main(argv=None):
     flat = flat_grads(model)
     graphed = cfg['cuda_graphs'] and cfg['compile'] and cuda and flat is not None
     params = list(model.parameters())
-    rng = np.random.default_rng(cfg['seed'] + start)
-    log, elog = open(out / 'train.jsonl', 'a'), open(out / 'eval.jsonl', 'a')
+    rng = np.random.default_rng(cfg['seed'] + start if rank == 0 else (cfg['seed'] + start, rank))
+    log, elog = (open(out / 'train.jsonl', 'a'), open(out / 'eval.jsonl', 'a')) if rank == 0 else (None, None)
     step_fn = None
     t0, window = time.time(), []
     for step in range(start, cfg['steps'] + 1):
@@ -374,7 +394,7 @@ def main(argv=None):
         lr = cfg['lr'] * min(1.0, step / cfg['warmup'])
         for g in opt.param_groups:
             g['lr'] = lr
-        b = {k: v.to(device, non_blocking=True) for k, v in data.train_batch(cfg['batch'], rng).items()}
+        b = {k: v.to(device, non_blocking=True) for k, v in data.train_batch(lanes, rng).items()}
         if graphed:
             if step_fn is None:
                 step_fn = GraphedStep(model, b, cfg['batch'])
@@ -385,8 +405,12 @@ def main(argv=None):
             opt.zero_grad(set_to_none=flat is None)
             if flat is not None:
                 flat.zero_()
-            loss.backward()
+            (loss / ws).backward()                             # mean over ranks after the sum below
             loss, logits = loss.detach(), logits.detach()
+        if ws > 1:                                             # graphed: lm_loss / batch, so the sum is the full step
+            grads = [flat] if flat is not None else [p.grad for p in params if p.grad is not None]
+            for g in grads:
+                dist.all_reduce(g)
         if flat is not None:
             gn = flat.norm()
             flat.mul_(torch.clamp(cfg['clip'] / (gn + 1e-6), max=1.0))   # torch clip_grad_norm_'s rule
@@ -408,10 +432,10 @@ def main(argv=None):
         if cuda:
             torch.cuda.synchronize(device)
         window.append(time.time() - ts)
-        if step % cfg['log_every'] == 0:
+        if step % cfg['log_every'] == 0 and rank == 0:
             s = scores(logits, b['labels'], b['query'])
             lam = float(model.cfg.lam_floor + torch.nn.functional.softplus(model.lam_raw.detach()))
-            rec = dict(step=step, loss=float(loss), exact=s['exact'] / s['n'], cell=s['cell'] / max(s['n_cell'], 1),
+            rec = dict(step=step, loss=float(loss) * (ws if graphed else 1), exact=s['exact'] / s['n'], cell=s['cell'] / max(s['n_cell'], 1),
                        cell_eos=s['cell_eos'] / max(s['n_eos'], 1), gnorm=float(gn), lr=lr, sec=time.time() - t0,
                        s_per_step=float(np.median(window)), tau=float(model.tau), lam=lam,
                        mem_gb=torch.cuda.max_memory_allocated(device) / 2 ** 30 if cuda else 0.0)
@@ -421,7 +445,9 @@ def main(argv=None):
             print(f"[SMALL] step {step} loss {rec['loss']:.4f} cell {rec['cell']:.4f} exact {rec['exact']:.3f} "
                   f"gn {rec['gnorm']:.2f} tau {rec['tau']:.3f} lam {lam:.2e} {rec['s_per_step'] * 1e3:.1f} ms/step "
                   f"{rec['mem_gb']:.1f}GiB", flush=True)
-        if step % cfg['eval_every'] == 0 or step == cfg['steps']:
+        if (step % cfg['eval_every'] == 0 or step == cfg['steps']) and ws > 1 and rank > 0:
+            dist.barrier()                                     # rank 0 evaluates and checkpoints
+        elif step % cfg['eval_every'] == 0 or step == cfg['steps']:
             te = time.time()
             with EMAWeights(model, ema):
                 e = evaluate(model, data, device, cfg['eval_groups'])
@@ -441,8 +467,13 @@ def main(argv=None):
             tmp = ck_path.with_suffix('.tmp')
             torch.save(dict(model=model.state_dict(), ema=ema, opt=opt.state_dict(), step=step, meta=meta), tmp)
             tmp.replace(ck_path)
-    log.close()
-    elog.close()
+            if ws > 1:
+                dist.barrier()
+    if rank == 0:
+        log.close()
+        elog.close()
+    if ws > 1:
+        dist.destroy_process_group()
 
 
 if __name__ == '__main__':

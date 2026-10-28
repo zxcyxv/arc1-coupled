@@ -1,0 +1,166 @@
+[SMALL] params 3,723,606 model {'canvas': 11, 'd': 512, 'heads': 8, 'blocks': 16, 'grad_blocks': 10, 'bands': 4, 'frames': 8, 'fused_bands': True, 'trace_dtype': 'float32', 'frame_bf16': False, 'direct_head': True, 'lam_learn': False, 'lam_floor': 0.01} tasks 255 test pairs 278 device NVIDIA H100 80GB HBM3
+[SMALL] step 100 loss 1.8339 cell 0.5644 exact 0.000 gn 1.67 tau 1.001 lam 1.00e-02 101.2 ms/step 11.2GiB
+[SMALL] step 200 loss 1.8107 cell 0.4835 exact 0.000 gn 4.05 tau 1.002 lam 1.00e-02 100.6 ms/step 11.2GiB
+[SMALL] step 300 loss 1.5859 cell 0.5322 exact 0.000 gn 4.61 tau 1.004 lam 1.00e-02 100.6 ms/step 11.2GiB
+[SMALL] step 400 loss 1.2967 cell 0.6077 exact 0.000 gn 4.81 tau 1.008 lam 1.00e-02 102.9 ms/step 11.2GiB
+[SMALL] step 500 loss 1.1237 cell 0.6670 exact 0.016 gn 3.49 tau 1.012 lam 1.00e-02 102.9 ms/step 11.2GiB
+[SMALL] step 600 loss 0.9775 cell 0.6741 exact 0.047 gn 5.57 tau 1.018 lam 1.00e-02 101.5 ms/step 11.2GiB
+[SMALL] step 700 loss 0.8561 cell 0.6932 exact 0.000 gn 3.79 tau 1.024 lam 1.00e-02 101.4 ms/step 11.2GiB
+[SMALL] step 800 loss 0.8345 cell 0.7334 exact 0.000 gn 4.20 tau 1.031 lam 1.00e-02 101.1 ms/step 11.2GiB
+[SMALL] step 900 loss 0.7079 cell 0.7370 exact 0.031 gn 2.62 tau 1.040 lam 1.00e-02 92.1 ms/step 11.2GiB
+[SMALL] step 1000 loss 0.6551 cell 0.7723 exact 0.016 gn 3.42 tau 1.049 lam 1.00e-02 102.2 ms/step 11.2GiB
+[EVAL] step 1000 exact 0/278 cell 0.5562 cell_eos 0.6433 test_ce 1.3281 (3s)
+[SMALL] step 1100 loss 0.8442 cell 0.6472 exact 0.000 gn 2.90 tau 1.059 lam 1.00e-02 103.0 ms/step 11.2GiB
+[SMALL] step 1200 loss 0.7645 cell 0.7657 exact 0.000 gn 3.17 tau 1.070 lam 1.00e-02 106.6 ms/step 11.2GiB
+[SMALL] step 1300 loss 0.6130 cell 0.7466 exact 0.000 gn 1.64 tau 1.083 lam 1.00e-02 101.5 ms/step 11.2GiB
+[SMALL] step 1400 loss 0.6877 cell 0.7920 exact 0.031 gn 2.52 tau 1.096 lam 1.00e-02 102.9 ms/step 11.2GiB
+[SMALL] step 1500 loss 0.5810 cell 0.8100 exact 0.000 gn 1.93 tau 1.110 lam 1.00e-02 101.3 ms/step 11.2GiB
+[SMALL] step 1600 loss 0.5899 cell 0.7707 exact 0.109 gn 1.96 tau 1.125 lam 1.00e-02 101.5 ms/step 11.2GiB
+[SMALL] step 1700 loss 0.4943 cell 0.7024 exact 0.000 gn 1.71 tau 1.141 lam 1.00e-02 106.8 ms/step 11.2GiB
+[SMALL] step 1800 loss 0.5531 cell 0.7636 exact 0.031 gn 1.75 tau 1.158 lam 1.00e-02 103.1 ms/step 11.2GiB
+[SMALL] step 1900 loss 0.4265 cell 0.8100 exact 0.109 gn 1.26 tau 1.175 lam 1.00e-02 100.9 ms/step 11.2GiB
+[SMALL] step 2000 loss 0.4047 cell 0.8615 exact 0.062 gn 1.50 tau 1.194 lam 1.00e-02 101.3 ms/step 11.2GiB
+[EVAL] step 2000 exact 10/278 cell 0.7644 cell_eos 0.8133 test_ce 0.6211 (2s)
+[SMALL] step 2100 loss 0.5102 cell 0.7696 exact 0.031 gn 1.66 tau 1.212 lam 1.00e-02 100.9 ms/step 11.2GiB
+[SMALL] step 2200 loss 0.4118 cell 0.8402 exact 0.109 gn 1.36 tau 1.231 lam 1.00e-02 103.1 ms/step 11.2GiB
+[SMALL] step 2300 loss 0.4427 cell 0.8234 exact 0.078 gn 1.40 tau 1.250 lam 1.00e-02 100.9 ms/step 11.2GiB
+[SMALL] step 2400 loss 0.4400 cell 0.8352 exact 0.109 gn 1.68 tau 1.268 lam 1.00e-02 101.4 ms/step 11.2GiB
+[SMALL] step 2500 loss 0.3982 cell 0.8513 exact 0.109 gn 1.20 tau 1.286 lam 1.00e-02 100.6 ms/step 11.2GiB
+[SMALL] step 2600 loss 0.4783 cell 0.7804 exact 0.125 gn 1.30 tau 1.305 lam 1.00e-02 101.2 ms/step 11.2GiB
+[SMALL] step 2700 loss 0.3932 cell 0.7911 exact 0.109 gn 1.66 tau 1.322 lam 1.00e-02 101.2 ms/step 11.2GiB
+[SMALL] step 2800 loss 0.4123 cell 0.8249 exact 0.047 gn 1.12 tau 1.340 lam 1.00e-02 101.8 ms/step 11.2GiB
+[SMALL] step 2900 loss 0.3601 cell 0.8197 exact 0.109 gn 1.14 tau 1.358 lam 1.00e-02 100.9 ms/step 11.2GiB
+[SMALL] step 3000 loss 0.4261 cell 0.7885 exact 0.078 gn 1.35 tau 1.375 lam 1.00e-02 101.7 ms/step 11.2GiB
+[EVAL] step 3000 exact 15/278 cell 0.7940 cell_eos 0.8371 test_ce 0.4821 (2s)
+[SMALL] step 3100 loss 0.3842 cell 0.8741 exact 0.156 gn 1.42 tau 1.392 lam 1.00e-02 102.9 ms/step 11.2GiB
+[SMALL] step 3200 loss 0.3108 cell 0.8580 exact 0.203 gn 1.43 tau 1.409 lam 1.00e-02 101.7 ms/step 11.2GiB
+[SMALL] step 3300 loss 0.2849 cell 0.9104 exact 0.172 gn 1.42 tau 1.426 lam 1.00e-02 102.7 ms/step 11.2GiB
+[SMALL] step 3400 loss 0.2969 cell 0.8960 exact 0.094 gn 1.35 tau 1.443 lam 1.00e-02 102.8 ms/step 11.2GiB
+[SMALL] step 3500 loss 0.4291 cell 0.8097 exact 0.156 gn 1.35 tau 1.459 lam 1.00e-02 102.6 ms/step 11.2GiB
+[SMALL] step 3600 loss 0.2881 cell 0.8539 exact 0.344 gn 1.24 tau 1.475 lam 1.00e-02 100.6 ms/step 11.2GiB
+[SMALL] step 3700 loss 0.2900 cell 0.8719 exact 0.125 gn 1.11 tau 1.491 lam 1.00e-02 100.6 ms/step 11.2GiB
+[SMALL] step 3800 loss 0.2306 cell 0.8904 exact 0.234 gn 1.02 tau 1.507 lam 1.00e-02 100.8 ms/step 11.2GiB
+[SMALL] step 3900 loss 0.2465 cell 0.8862 exact 0.109 gn 1.36 tau 1.521 lam 1.00e-02 100.5 ms/step 11.2GiB
+[SMALL] step 4000 loss 0.2134 cell 0.9062 exact 0.188 gn 1.33 tau 1.536 lam 1.00e-02 101.0 ms/step 11.2GiB
+[EVAL] step 4000 exact 37/278 cell 0.8286 cell_eos 0.8644 test_ce 0.4181 (2s)
+[SMALL] step 4100 loss 0.2961 cell 0.8610 exact 0.203 gn 2.22 tau 1.551 lam 1.00e-02 101.0 ms/step 11.2GiB
+[SMALL] step 4200 loss 0.2197 cell 0.9064 exact 0.297 gn 1.31 tau 1.565 lam 1.00e-02 100.9 ms/step 11.2GiB
+[SMALL] step 4300 loss 0.3103 cell 0.8578 exact 0.188 gn 1.66 tau 1.578 lam 1.00e-02 100.9 ms/step 11.2GiB
+[SMALL] step 4400 loss 0.2145 cell 0.9146 exact 0.312 gn 1.06 tau 1.594 lam 1.00e-02 102.9 ms/step 11.2GiB
+[SMALL] step 4500 loss 0.2417 cell 0.8945 exact 0.344 gn 1.53 tau 1.608 lam 1.00e-02 103.5 ms/step 11.2GiB
+[SMALL] step 4600 loss 0.3531 cell 0.7984 exact 0.125 gn 1.52 tau 1.621 lam 1.00e-02 101.0 ms/step 11.2GiB
+[SMALL] step 4700 loss 0.2536 cell 0.8633 exact 0.297 gn 2.23 tau 1.633 lam 1.00e-02 101.3 ms/step 11.2GiB
+[SMALL] step 4800 loss 0.2475 cell 0.8916 exact 0.328 gn 1.26 tau 1.645 lam 1.00e-02 100.9 ms/step 11.2GiB
+[SMALL] step 4900 loss 0.2795 cell 0.8910 exact 0.219 gn 1.38 tau 1.657 lam 1.00e-02 100.6 ms/step 11.2GiB
+[SMALL] step 5000 loss 0.1442 cell 0.9276 exact 0.266 gn 1.38 tau 1.670 lam 1.00e-02 102.9 ms/step 11.2GiB
+[EVAL] step 5000 exact 50/278 cell 0.8509 cell_eos 0.8819 test_ce 0.3903 (2s)
+[SMALL] step 5100 loss 0.1819 cell 0.8885 exact 0.469 gn 1.18 tau 1.682 lam 1.00e-02 101.1 ms/step 11.2GiB
+[SMALL] step 5200 loss 0.2590 cell 0.9254 exact 0.203 gn 1.48 tau 1.694 lam 1.00e-02 100.9 ms/step 11.2GiB
+[SMALL] step 5300 loss 0.2501 cell 0.9152 exact 0.281 gn 2.65 tau 1.704 lam 1.00e-02 101.2 ms/step 11.2GiB
+[SMALL] step 5400 loss 0.1572 cell 0.9204 exact 0.375 gn 4.04 tau 1.717 lam 1.00e-02 100.9 ms/step 11.2GiB
+[SMALL] step 5500 loss 0.1253 cell 0.9533 exact 0.234 gn 1.13 tau 1.730 lam 1.00e-02 100.9 ms/step 11.2GiB
+[SMALL] step 5600 loss 0.2245 cell 0.8975 exact 0.297 gn 1.81 tau 1.740 lam 1.00e-02 102.6 ms/step 11.2GiB
+[SMALL] step 5700 loss 0.1848 cell 0.9422 exact 0.297 gn 2.09 tau 1.749 lam 1.00e-02 101.2 ms/step 11.2GiB
+[SMALL] step 5800 loss 0.1852 cell 0.9238 exact 0.391 gn 0.78 tau 1.760 lam 1.00e-02 101.0 ms/step 11.2GiB
+[SMALL] step 5900 loss 0.1336 cell 0.9376 exact 0.453 gn 0.97 tau 1.772 lam 1.00e-02 100.8 ms/step 11.2GiB
+[SMALL] step 6000 loss 0.1574 cell 0.9308 exact 0.328 gn 1.59 tau 1.784 lam 1.00e-02 101.3 ms/step 11.2GiB
+[EVAL] step 6000 exact 57/278 cell 0.8613 cell_eos 0.8901 test_ce 0.3909 (2s)
+[SMALL] step 6100 loss 0.1557 cell 0.9225 exact 0.422 gn 2.05 tau 1.795 lam 1.00e-02 100.5 ms/step 11.2GiB
+[SMALL] step 6200 loss 0.0980 cell 0.9699 exact 0.609 gn 0.85 tau 1.804 lam 1.00e-02 102.8 ms/step 11.2GiB
+[SMALL] step 6300 loss 0.0881 cell 0.9502 exact 0.562 gn 1.48 tau 1.813 lam 1.00e-02 100.5 ms/step 11.2GiB
+[SMALL] step 6400 loss 0.1348 cell 0.9445 exact 0.406 gn 0.93 tau 1.824 lam 1.00e-02 100.8 ms/step 11.2GiB
+[SMALL] step 6500 loss 0.1769 cell 0.9313 exact 0.453 gn 1.26 tau 1.834 lam 1.00e-02 100.8 ms/step 11.2GiB
+[SMALL] step 6600 loss 0.2654 cell 0.9217 exact 0.203 gn 2.01 tau 1.842 lam 1.00e-02 102.5 ms/step 11.2GiB
+[SMALL] step 6700 loss 0.1580 cell 0.9509 exact 0.500 gn 2.05 tau 1.850 lam 1.00e-02 101.4 ms/step 11.2GiB
+[SMALL] step 6800 loss 0.1489 cell 0.9237 exact 0.359 gn 1.46 tau 1.860 lam 1.00e-02 101.1 ms/step 11.2GiB
+[SMALL] step 6900 loss 0.1639 cell 0.9258 exact 0.297 gn 1.75 tau 1.870 lam 1.00e-02 100.3 ms/step 11.2GiB
+[SMALL] step 7000 loss 0.2138 cell 0.9068 exact 0.391 gn 1.57 tau 1.877 lam 1.00e-02 100.8 ms/step 11.2GiB
+[EVAL] step 7000 exact 66/278 cell 0.8671 cell_eos 0.8947 test_ce 0.3981 (2s)
+[SMALL] step 7100 loss 0.1372 cell 0.9303 exact 0.469 gn 1.92 tau 1.886 lam 1.00e-02 100.9 ms/step 11.2GiB
+[SMALL] step 7200 loss 0.1354 cell 0.9169 exact 0.578 gn 1.05 tau 1.896 lam 1.00e-02 100.6 ms/step 11.2GiB
+[SMALL] step 7300 loss 0.0454 cell 0.9820 exact 0.688 gn 1.17 tau 1.905 lam 1.00e-02 100.8 ms/step 11.2GiB
+[SMALL] step 7400 loss 0.1572 cell 0.9373 exact 0.438 gn 1.59 tau 1.911 lam 1.00e-02 101.1 ms/step 11.2GiB
+[SMALL] step 7500 loss 0.1611 cell 0.9436 exact 0.469 gn 2.60 tau 1.921 lam 1.00e-02 101.1 ms/step 11.2GiB
+[SMALL] step 7600 loss 0.1567 cell 0.9137 exact 0.500 gn 1.54 tau 1.930 lam 1.00e-02 101.2 ms/step 11.2GiB
+[SMALL] step 7700 loss 0.1249 cell 0.9263 exact 0.516 gn 1.53 tau 1.938 lam 1.00e-02 101.4 ms/step 11.2GiB
+[SMALL] step 7800 loss 0.1324 cell 0.9603 exact 0.344 gn 2.38 tau 1.949 lam 1.00e-02 100.8 ms/step 11.2GiB
+[SMALL] step 7900 loss 0.2188 cell 0.9238 exact 0.547 gn 1.29 tau 1.958 lam 1.00e-02 100.4 ms/step 11.2GiB
+[SMALL] step 8000 loss 0.1406 cell 0.9393 exact 0.312 gn 1.08 tau 1.965 lam 1.00e-02 101.0 ms/step 11.2GiB
+[EVAL] step 8000 exact 67/278 cell 0.8725 cell_eos 0.8990 test_ce 0.4102 (2s)
+[SMALL] step 8100 loss 0.1284 cell 0.9774 exact 0.594 gn 1.88 tau 1.975 lam 1.00e-02 100.6 ms/step 11.2GiB
+[SMALL] step 8200 loss 0.1437 cell 0.9523 exact 0.422 gn 1.03 tau 1.983 lam 1.00e-02 101.0 ms/step 11.2GiB
+[SMALL] step 8300 loss 0.0860 cell 0.9665 exact 0.562 gn 1.51 tau 1.989 lam 1.00e-02 103.0 ms/step 11.2GiB
+[SMALL] step 8400 loss 0.0864 cell 0.9674 exact 0.531 gn 1.22 tau 1.999 lam 1.00e-02 103.0 ms/step 11.2GiB
+[SMALL] step 8500 loss 0.0954 cell 0.9638 exact 0.594 gn 1.13 tau 2.004 lam 1.00e-02 103.3 ms/step 11.2GiB
+[SMALL] step 8600 loss 0.1183 cell 0.9664 exact 0.516 gn 2.25 tau 2.013 lam 1.00e-02 102.8 ms/step 11.2GiB
+[SMALL] step 8700 loss 0.0679 cell 0.9662 exact 0.594 gn 0.96 tau 2.020 lam 1.00e-02 102.9 ms/step 11.2GiB
+[SMALL] step 8800 loss 0.0944 cell 0.9682 exact 0.719 gn 1.17 tau 2.029 lam 1.00e-02 104.7 ms/step 11.2GiB
+[SMALL] step 8900 loss 0.0897 cell 0.9487 exact 0.594 gn 2.79 tau 2.037 lam 1.00e-02 101.4 ms/step 11.2GiB
+[SMALL] step 9000 loss 0.0970 cell 0.9717 exact 0.562 gn 0.96 tau 2.046 lam 1.00e-02 107.0 ms/step 11.2GiB
+[EVAL] step 9000 exact 70/278 cell 0.8727 cell_eos 0.8991 test_ce 0.4312 (2s)
+[SMALL] step 9100 loss 0.0993 cell 0.9448 exact 0.625 gn 2.13 tau 2.053 lam 1.00e-02 101.1 ms/step 11.2GiB
+[SMALL] step 9200 loss 0.0823 cell 0.9685 exact 0.672 gn 1.83 tau 2.060 lam 1.00e-02 101.5 ms/step 11.2GiB
+[SMALL] step 9300 loss 0.1499 cell 0.9574 exact 0.531 gn 1.78 tau 2.066 lam 1.00e-02 101.3 ms/step 11.2GiB
+[SMALL] step 9400 loss 0.1048 cell 0.9468 exact 0.594 gn 1.22 tau 2.072 lam 1.00e-02 100.9 ms/step 11.2GiB
+[SMALL] step 9500 loss 0.0794 cell 0.9532 exact 0.656 gn 0.96 tau 2.079 lam 1.00e-02 102.9 ms/step 11.2GiB
+[SMALL] step 9600 loss 0.1154 cell 0.9505 exact 0.625 gn 21.02 tau 2.087 lam 1.00e-02 100.7 ms/step 11.2GiB
+[SMALL] step 9700 loss 0.1294 cell 0.9472 exact 0.484 gn 1.08 tau 2.094 lam 1.00e-02 101.2 ms/step 11.2GiB
+[SMALL] step 9800 loss 0.2532 cell 0.9345 exact 0.453 gn 2.57 tau 2.101 lam 1.00e-02 102.9 ms/step 11.2GiB
+[SMALL] step 9900 loss 0.0412 cell 0.9811 exact 0.656 gn 1.66 tau 2.108 lam 1.00e-02 100.6 ms/step 11.2GiB
+[SMALL] step 10000 loss 0.0774 cell 0.9758 exact 0.531 gn 2.45 tau 2.114 lam 1.00e-02 101.4 ms/step 11.2GiB
+[EVAL] step 10000 exact 74/278 cell 0.8701 cell_eos 0.8970 test_ce 0.4581 (2s)
+[SMALL] step 10100 loss 0.1244 cell 0.9508 exact 0.641 gn 1.14 tau 2.122 lam 1.00e-02 101.0 ms/step 11.2GiB
+[SMALL] step 10200 loss 0.0874 cell 0.9663 exact 0.609 gn 1.04 tau 2.128 lam 1.00e-02 101.1 ms/step 11.2GiB
+[SMALL] step 10300 loss 0.1058 cell 0.9735 exact 0.578 gn 2.97 tau 2.134 lam 1.00e-02 100.6 ms/step 11.2GiB
+[SMALL] step 10400 loss 0.0790 cell 0.9733 exact 0.594 gn 2.86 tau 2.141 lam 1.00e-02 100.7 ms/step 11.2GiB
+[SMALL] step 10500 loss 0.0668 cell 0.9864 exact 0.656 gn 1.11 tau 2.147 lam 1.00e-02 104.4 ms/step 11.2GiB
+[SMALL] step 10600 loss 0.0528 cell 0.9918 exact 0.734 gn 1.49 tau 2.153 lam 1.00e-02 101.2 ms/step 11.2GiB
+[SMALL] step 10700 loss 0.0678 cell 0.9613 exact 0.641 gn 1.94 tau 2.157 lam 1.00e-02 101.1 ms/step 11.2GiB
+[SMALL] step 10800 loss 0.0939 cell 0.9623 exact 0.562 gn 1.73 tau 2.163 lam 1.00e-02 101.0 ms/step 11.2GiB
+[SMALL] step 10900 loss 0.1055 cell 0.9851 exact 0.672 gn 0.76 tau 2.170 lam 1.00e-02 103.0 ms/step 11.2GiB
+[SMALL] step 11000 loss 0.0779 cell 0.9818 exact 0.609 gn 2.70 tau 2.177 lam 1.00e-02 103.5 ms/step 11.2GiB
+[EVAL] step 11000 exact 82/278 cell 0.8706 cell_eos 0.8972 test_ce 0.4726 (2s)
+[SMALL] step 11100 loss 0.0253 cell 0.9947 exact 0.766 gn 0.66 tau 2.185 lam 1.00e-02 101.2 ms/step 11.2GiB
+[SMALL] step 11200 loss 0.0465 cell 0.9810 exact 0.812 gn 1.05 tau 2.190 lam 1.00e-02 103.1 ms/step 11.2GiB
+[SMALL] step 11300 loss 0.0515 cell 0.9818 exact 0.562 gn 0.57 tau 2.198 lam 1.00e-02 103.0 ms/step 11.2GiB
+[SMALL] step 11400 loss 0.0787 cell 0.9814 exact 0.656 gn 1.11 tau 2.205 lam 1.00e-02 101.2 ms/step 11.2GiB
+[SMALL] step 11500 loss 0.0560 cell 0.9796 exact 0.672 gn 0.49 tau 2.210 lam 1.00e-02 101.2 ms/step 11.2GiB
+[SMALL] step 11600 loss 0.0620 cell 0.9760 exact 0.578 gn 0.75 tau 2.217 lam 1.00e-02 101.2 ms/step 11.2GiB
+[SMALL] step 11700 loss 0.0609 cell 0.9858 exact 0.672 gn 1.64 tau 2.224 lam 1.00e-02 103.4 ms/step 11.2GiB
+[SMALL] step 11800 loss 0.0870 cell 0.9757 exact 0.609 gn 2.36 tau 2.232 lam 1.00e-02 103.3 ms/step 11.2GiB
+[SMALL] step 11900 loss 0.1184 cell 0.9724 exact 0.766 gn 0.84 tau 2.238 lam 1.00e-02 100.6 ms/step 11.2GiB
+[SMALL] step 12000 loss 0.0523 cell 0.9890 exact 0.703 gn 0.81 tau 2.244 lam 1.00e-02 105.2 ms/step 11.2GiB
+[EVAL] step 12000 exact 81/278 cell 0.8690 cell_eos 0.8959 test_ce 0.4929 (2s)
+[SMALL] step 12100 loss 0.0571 cell 0.9763 exact 0.516 gn 1.05 tau 2.252 lam 1.00e-02 101.4 ms/step 11.2GiB
+[SMALL] step 12200 loss 0.1092 cell 0.9797 exact 0.547 gn 1.76 tau 2.260 lam 1.00e-02 100.9 ms/step 11.2GiB
+[SMALL] step 12300 loss 0.1894 cell 0.9705 exact 0.688 gn 5.75 tau 2.267 lam 1.00e-02 103.0 ms/step 11.2GiB
+[SMALL] step 12400 loss 0.1080 cell 0.9585 exact 0.578 gn 3.87 tau 2.272 lam 1.00e-02 103.0 ms/step 11.2GiB
+[SMALL] step 12500 loss 0.0706 cell 0.9876 exact 0.703 gn 1.30 tau 2.277 lam 1.00e-02 101.1 ms/step 11.2GiB
+[SMALL] step 12600 loss 0.1088 cell 0.9775 exact 0.641 gn 1.40 tau 2.281 lam 1.00e-02 103.0 ms/step 11.2GiB
+[SMALL] step 12700 loss 0.0555 cell 0.9864 exact 0.719 gn 0.63 tau 2.288 lam 1.00e-02 101.2 ms/step 11.2GiB
+[SMALL] step 12800 loss 0.0354 cell 0.9936 exact 0.844 gn 1.60 tau 2.292 lam 1.00e-02 103.7 ms/step 11.2GiB
+[SMALL] step 12900 loss 0.1142 cell 0.9834 exact 0.688 gn 3.10 tau 2.299 lam 1.00e-02 100.5 ms/step 11.2GiB
+[SMALL] step 13000 loss 0.0983 cell 0.9633 exact 0.641 gn 1.42 tau 2.304 lam 1.00e-02 101.1 ms/step 11.2GiB
+[EVAL] step 13000 exact 81/278 cell 0.8706 cell_eos 0.8974 test_ce 0.5177 (2s)
+[SMALL] step 13100 loss 0.0300 cell 0.9869 exact 0.703 gn 0.50 tau 2.310 lam 1.00e-02 101.0 ms/step 11.2GiB
+[SMALL] step 13200 loss 0.0539 cell 0.9619 exact 0.719 gn 1.12 tau 2.317 lam 1.00e-02 102.0 ms/step 11.2GiB
+[SMALL] step 13300 loss 0.0971 cell 0.9650 exact 0.594 gn 0.93 tau 2.323 lam 1.00e-02 102.7 ms/step 11.2GiB
+[SMALL] step 13400 loss 0.0618 cell 0.9758 exact 0.734 gn 1.69 tau 2.327 lam 1.00e-02 102.5 ms/step 11.2GiB
+[SMALL] step 13500 loss 0.0705 cell 0.9862 exact 0.734 gn 1.74 tau 2.333 lam 1.00e-02 100.7 ms/step 11.2GiB
+[SMALL] step 13600 loss 0.0509 cell 0.9868 exact 0.719 gn 1.07 tau 2.337 lam 1.00e-02 100.9 ms/step 11.2GiB
+[SMALL] step 13700 loss 0.0160 cell 0.9932 exact 0.906 gn 0.83 tau 2.341 lam 1.00e-02 101.2 ms/step 11.2GiB
+[SMALL] step 13800 loss 0.0834 cell 0.9718 exact 0.594 gn 3.36 tau 2.347 lam 1.00e-02 101.0 ms/step 11.2GiB
+[SMALL] step 13900 loss 0.0336 cell 0.9881 exact 0.812 gn 3.81 tau 2.350 lam 1.00e-02 100.7 ms/step 11.2GiB
+[SMALL] step 14000 loss 0.0728 cell 0.9939 exact 0.766 gn 1.83 tau 2.356 lam 1.00e-02 101.0 ms/step 11.2GiB
+[EVAL] step 14000 exact 81/278 cell 0.8694 cell_eos 0.8965 test_ce 0.5325 (2s)
+[SMALL] step 14100 loss 0.0690 cell 0.9750 exact 0.625 gn 2.27 tau 2.360 lam 1.00e-02 100.8 ms/step 11.2GiB
+[SMALL] step 14200 loss 0.0737 cell 0.9800 exact 0.578 gn 1.18 tau 2.365 lam 1.00e-02 100.9 ms/step 11.2GiB
+[SMALL] step 14300 loss 0.0337 cell 0.9928 exact 0.859 gn 2.01 tau 2.369 lam 1.00e-02 101.4 ms/step 11.2GiB
+[SMALL] step 14400 loss 0.0702 cell 0.9835 exact 0.859 gn 1.21 tau 2.375 lam 1.00e-02 103.0 ms/step 11.2GiB
+[SMALL] step 14500 loss 0.0420 cell 0.9936 exact 0.844 gn 0.32 tau 2.379 lam 1.00e-02 100.8 ms/step 11.2GiB
+[SMALL] step 14600 loss 0.0853 cell 0.9834 exact 0.625 gn 0.98 tau 2.384 lam 1.00e-02 101.1 ms/step 11.2GiB
+[SMALL] step 14700 loss 0.0389 cell 0.9855 exact 0.797 gn 1.27 tau 2.389 lam 1.00e-02 100.9 ms/step 11.2GiB
+[SMALL] step 14800 loss 0.0673 cell 0.9912 exact 0.750 gn 3.28 tau 2.393 lam 1.00e-02 101.4 ms/step 11.2GiB
+[SMALL] step 14900 loss 0.0432 cell 0.9864 exact 0.750 gn 4.44 tau 2.396 lam 1.00e-02 51.9 ms/step 11.2GiB
+[SMALL] step 15000 loss 0.0460 cell 0.9804 exact 0.797 gn 0.66 tau 2.401 lam 1.00e-02 51.6 ms/step 11.2GiB
+[EVAL] step 15000 exact 87/278 cell 0.8729 cell_eos 0.8992 test_ce 0.5426 (1s)
