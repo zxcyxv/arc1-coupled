@@ -71,7 +71,10 @@ class ModelConfig:
     lam_init: float = 1e-3            # lasso threshold (learned, softplus): lam_floor + softplus(lam_raw)
     lam_floor: float = 0.0            # lower bound of the lasso threshold (the training loss alone drives it to 0)
     lam_learn: bool = True            # False: lambda = lam_floor exactly (no learned part; lam_floor 0 = no sparse LTD)
-    rope_1d: bool = False             # True: positions = the lane's sequence index (else (row, col) on the canvas)
+    lmax_step: bool = False           # True: proximal steps of size 1 / lambda_max (G for Theta, H for Gamma; power
+                                      # iteration, no gradient) instead of 1 (the bound tr G = 1)
+    ista_iters: int = 1               # proximal steps per block from the carried (Theta, Gamma), G and S computed once
+    rope_1d: bool = False            # True: positions = the lane's sequence index (else (row, col) on the canvas)
     rope_fixed: Optional[bool] = None # True: TRM's fixed frequencies, a buffer (None: = rope_1d). 1D: rope_base^(-2i / dh)
                                       # per pair; 2D: axial, the first dh / 4 pairs on rows, the rest on columns, each
                                       # rope_base^(-4i / dh). False: learned angles (initialised uniform, as before)
@@ -469,6 +472,8 @@ class Coupled(nn.Module):
         """One proximal step of the lasso on Theta (step 1); with frames (gam [L,F], ext = (C, H, s)) then one on
         Gamma (also valid at step 1, since sum_k |kappa_k|^2 <= 1)."""
         lam = self.cfg.lam_floor + F.softplus(self.lam_raw)
+        if self.cfg.lmax_step or self.cfg.ista_iters > 1:
+            return self.solve(theta, G, S, lam, gam, ext)
         g = theta @ G - S
         if gam is not None:
             g = g + (gam[..., None, None] * ext[0]).sum(1)
@@ -478,6 +483,34 @@ class Coupled(nn.Module):
         Ck, H, sv = ext
         gg = (theta[:, None] * Ck).sum((-2, -1)) + (H * gam[:, None]).sum(-1) - sv
         return theta, soft(gam - gg, lam)
+
+    @staticmethod
+    def lipschitz(M, iters=20):
+        """lambda_max of the PSD [L,n,n] by power iteration (no gradient), floored at 1e-6 (empty lanes)."""
+        with torch.no_grad():
+            v = torch.ones(M.shape[:-1], dtype=M.dtype, device=M.device)
+            for _ in range(iters):
+                v = (M @ v[..., None]).squeeze(-1)
+                v = v / v.norm(dim=-1, keepdim=True).clamp_min(1e-30)
+            return ((M @ v[..., None]).squeeze(-1) * v).sum(-1).clamp_min(1e-6)
+
+    def solve(self, theta, G, S, lam, gam=None, ext=None):
+        """ista_iters block-proximal steps from the carried (Theta, Gamma): Theta, then Gamma, each with step 1 (the
+        bounds tr G = 1, sum_k |kappa_k|^2 <= 1) or, with lmax_step, 1 / lambda_max of its own block (G, H)."""
+        c = self.cfg
+        Lt = self.lipschitz(G)[:, None, None] if c.lmax_step else 1.0
+        if gam is not None:
+            Ck, H, sv = ext
+            Lg = self.lipschitz(H)[:, None] if c.lmax_step else 1.0
+        for _ in range(c.ista_iters):
+            g = theta @ G - S
+            if gam is not None:
+                g = g + (gam[..., None, None] * Ck).sum(1)
+            theta = soft(theta - g / Lt, lam / Lt)
+            if gam is not None:
+                gg = (theta[:, None] * Ck).sum((-2, -1)) + (H * gam[:, None]).sum(-1) - sv
+                gam = soft(gam - gg / Lg, lam / Lg)
+        return theta if gam is None else (theta, gam)
 
     def rule_head(self, h, x_in, y, m, demo, group, theta, gam, amp, ftab=None):
         """The rule head after one block, in FP32 (FP64 on the test path): phi, kappa, the leave-one-out statistics,
