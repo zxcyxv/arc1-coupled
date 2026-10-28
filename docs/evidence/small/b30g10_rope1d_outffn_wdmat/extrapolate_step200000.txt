@@ -1,0 +1,7 @@
+checkpoints/small/b30g10_rope1d_outffn_wdmat_step200000_ema.pt (step 200000, 30 blocks per segment), 278 test pairs
+K=  1 (  30 blocks): exact 120/278  cell 0.8888  test CE 0.5818  | vs K=1: +0 newly solved, -0 lost
+K=  2 (  60 blocks): exact   2/278  cell 0.6386  test CE 1.9192  | vs K=1: +0 newly solved, -118 lost
+K=  4 ( 120 blocks): exact   0/278  cell 0.6619  test CE 2.0486  | vs K=1: +0 newly solved, -120 lost
+K=  8 ( 240 blocks): exact   1/278  cell 0.6847  test CE 1.7838  | vs K=1: +0 newly solved, -119 lost
+K= 16 ( 480 blocks): exact   4/278  cell 0.6533  test CE 2.0263  | vs K=1: +0 newly solved, -116 lost
+K= 32 ( 960 blocks): exact   3/278  cell 0.6590  test CE 1.9992  | vs K=1: +0 newly solved, -117 lost

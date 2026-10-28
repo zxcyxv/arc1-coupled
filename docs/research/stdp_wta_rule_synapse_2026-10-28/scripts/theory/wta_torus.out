@@ -1,0 +1,75 @@
+ls_minnorm {"all": 0.0117, "train": 0.0104, "heldout_combo": 0.0392, "heldout_t": 0.0, "demo_cells_won": 1.0, "nnz_per_colour_row": 629.6}
+lasso_deployed_8 {"all": 0.0, "train": 0.0, "heldout_combo": 0.0, "heldout_t": 0.0, "demo_cells_won": 0.6589, "nnz_per_colour_row": 316.6}
+lasso_lam0.01 {"all": 0.0137, "train": 0.013, "heldout_combo": 0.0, "heldout_t": 0.0263, "demo_cells_won": 0.7864, "nnz_per_colour_row": 0.6}
+lasso_lam0.001 {"all": 0.9141, "train": 0.9169, "heldout_combo": 0.902, "heldout_t": 0.9079, "demo_cells_won": 1.0, "nnz_per_colour_row": 6.9}
+wta_eta0.125_T8 {"all": 0.0, "train": 0.0, "heldout_combo": 0.0, "heldout_t": 0.0, "demo_cells_won": 0.6589, "nnz_per_colour_row": 634.2}
+wta_eta0.125_T300 {"all": 0.0, "train": 0.0, "heldout_combo": 0.0, "heldout_t": 0.0, "demo_cells_won": 0.6595, "nnz_per_colour_row": 634.2}
+wta_eta0.01_T3000 {"all": 0.0, "train": 0.0, "heldout_combo": 0.0, "heldout_t": 0.0, "demo_cells_won": 0.9981, "nnz_per_colour_row": 627.7}
+wta_eta0.001_T15000 {"all": 0.0059, "train": 0.0052, "heldout_combo": 0.0196, "heldout_t": 0.0, "demo_cells_won": 1.0, "nnz_per_colour_row": 607.7}
+{
+ "n_instances": 512,
+ "ls_minnorm": {
+  "all": 0.0117,
+  "train": 0.0104,
+  "heldout_combo": 0.0392,
+  "heldout_t": 0.0,
+  "demo_cells_won": 1.0,
+  "nnz_per_colour_row": 629.6
+ },
+ "lasso_deployed_8_step1_lam1e-3": {
+  "all": 0.0,
+  "train": 0.0,
+  "heldout_combo": 0.0,
+  "heldout_t": 0.0,
+  "demo_cells_won": 0.6589,
+  "nnz_per_colour_row": 316.6
+ },
+ "lasso_lam0.01_fista3000": {
+  "all": 0.0137,
+  "train": 0.013,
+  "heldout_combo": 0.0,
+  "heldout_t": 0.0263,
+  "demo_cells_won": 0.7864,
+  "nnz_per_colour_row": 0.6
+ },
+ "lasso_lam0.001_fista3000": {
+  "all": 0.9141,
+  "train": 0.9169,
+  "heldout_combo": 0.902,
+  "heldout_t": 0.9079,
+  "demo_cells_won": 1.0,
+  "nnz_per_colour_row": 6.9
+ },
+ "wta_eta0.125_T8": {
+  "all": 0.0,
+  "train": 0.0,
+  "heldout_combo": 0.0,
+  "heldout_t": 0.0,
+  "demo_cells_won": 0.6589,
+  "nnz_per_colour_row": 634.2
+ },
+ "wta_eta0.125_T300": {
+  "all": 0.0,
+  "train": 0.0,
+  "heldout_combo": 0.0,
+  "heldout_t": 0.0,
+  "demo_cells_won": 0.6595,
+  "nnz_per_colour_row": 634.2
+ },
+ "wta_eta0.01_T3000": {
+  "all": 0.0,
+  "train": 0.0,
+  "heldout_combo": 0.0,
+  "heldout_t": 0.0,
+  "demo_cells_won": 0.9981,
+  "nnz_per_colour_row": 627.7
+ },
+ "wta_eta0.001_T15000": {
+  "all": 0.0059,
+  "train": 0.0052,
+  "heldout_combo": 0.0196,
+  "heldout_t": 0.0,
+  "demo_cells_won": 1.0,
+  "nnz_per_colour_row": 607.7
+ }
+}

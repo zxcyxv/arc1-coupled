@@ -1,0 +1,17 @@
+checkpoints/small/b30g10_rope1d_outffn_wdmat_step200000_ema.pt (step 200000, trained depth 30 blocks), 278 test pairs
+B= 30: exact 121/278  cell 0.8886  test CE 0.5824 | vs trained depth: +0 / -0
+B= 10: exact  38/278  cell 0.8225  test CE 0.6482 | vs trained depth: +4 / -87
+B= 15: exact  83/278  cell 0.8648  test CE 0.5407 | vs trained depth: +2 / -40
+B= 20: exact 103/278  cell 0.8811  test CE 0.5211 | vs trained depth: +4 / -22
+B= 25: exact 119/278  cell 0.8860  test CE 0.5470 | vs trained depth: +4 / -6
+B= 28: exact 123/278  cell 0.8871  test CE 0.5691 | vs trained depth: +4 / -2
+B= 29: exact 120/278  cell 0.8883  test CE 0.5768 | vs trained depth: +1 / -2
+B= 31: exact 119/278  cell 0.8892  test CE 0.5823 | vs trained depth: +2 / -4
+B= 32: exact 117/278  cell 0.8883  test CE 0.5737 | vs trained depth: +4 / -8
+B= 33: exact 113/278  cell 0.8861  test CE 0.5648 | vs trained depth: +5 / -13
+B= 35: exact  84/278  cell 0.8650  test CE 0.5797 | vs trained depth: +4 / -41
+B= 38: exact  15/278  cell 0.7094  test CE 1.3573 | vs trained depth: +2 / -108
+B= 40: exact   4/278  cell 0.6427  test CE 1.8038 | vs trained depth: +0 / -117
+B= 45: exact   2/278  cell 0.6356  test CE 1.9328 | vs trained depth: +0 / -119
+B= 50: exact   2/278  cell 0.6365  test CE 1.9253 | vs trained depth: +1 / -120
+B= 60: exact   1/278  cell 0.6374  test CE 1.9043 | vs trained depth: +0 / -120
