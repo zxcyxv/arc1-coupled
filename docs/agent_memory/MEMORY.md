@@ -4,5 +4,5 @@
 - [No multiple seeds](no-multi-seed.md) — never replicate seeds; single decisive runs only
 - [Decisive experiments](decisive-experiments.md) — binary causal interventions trained from scratch; no eval-time ablations or graded knobs
 - [Paper thesis](paper-thesis.md) — agreed 10-28: STDP over recursion (main) + TEM factorization; dropped RoPE/holdout; gaps
-- [State 2026-10-28](state-2026-10-28.md) — GPU work ended, ARC-2 submitted at 0%, handoff docs, exact framing of TRM comparisons
+- [State 2026-10-28](state-2026-10-28.md) — ARC-2 0%, <=10 depth result (30/10 rises, 8/4 plateaus), loops-1 extrapolation fails, next-instance experiments
 - [State 2026-10-27](state-2026-10-27.md) — (superseded by 10-28) RoPE 1D finding, holdout, ARC-2 coupled 1D run
