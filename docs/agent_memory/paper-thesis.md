@@ -18,7 +18,8 @@ Evidence items to show rigorously in the paper (not now): (1) TRM Sudoku checkpo
 
 **Dropped by the user from Theory:** RoPE 1D finding (just a return to convention), holdout/memorization (already known from HRM..URM), quantitative ARC-2 diagnostics. ARC-2 0% must still be in the main results table (track is ARC-AGI-2).
 
-**Terminology rule:** no coined terms ("TDP", "sparse LTD" were internal). Use "temporally asymmetric Hebbian rule with eligibility traces and a learned (STDP-like) kernel", "LTP-like/LTD-like lobes" defined on the association v k^T (activities are signed population codes).
+**Model name (user, 10-30):** TDP-Reasoner (timing-dependent plasticity reasoner). Define it once as STDP applied along the recursion depth, not as a new plasticity concept; explain the absence of spikes as: in this kind of recursive reasoning, spiking itself carries no substantive information, and the window depends only on the relative timing (order and lag) of two events.
+**Terminology:** use "temporally asymmetric Hebbian rule with eligibility traces and a learned (STDP-like) kernel", "LTP-like/LTD-like lobes" defined on the association v k^T (activities are signed population codes).
 
 **Gaps:** old numbers need their evidence files re-checked when writing; citations from memory need checking.
 Related: [[state-2026-10-27]], [[decisive-experiments]], [[no-multi-seed]].

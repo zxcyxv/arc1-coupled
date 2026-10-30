@@ -168,7 +168,9 @@
 
 ### 3.4 용어
 
-- 새 용어를 만들지 않는다. "TDP", "희소 LTD"는 이전 레포의 내부 용어였다.
+- 모델 이름은 TDP-Reasoner(timing-dependent plasticity reasoner, 10-30 사용자 결정). 새 가소성 개념으로 내세우지 않고, STDP를
+  재귀 깊이 축에 적용한 것으로 한 번 정의한다. 스파이크가 없는 이유: 이런 재귀 추론에서는 스파이킹 자체가 실질적인 정보를 지니지
+  않고, 창이 의존하는 것은 두 사건의 상대 시각(순서와 시차)이다.
 - "eligibility trace를 가진 temporally asymmetric Hebbian 규칙, 커널은 학습(STDP-like)". 활동은 부호 있는 집단 부호라 LTP/LTD는
   원소 변화의 부호가 아니다. "LTP-like / LTD-like lobe"를 연합 v kᵀ 쪽으로 / 반대쪽으로 옮기는 것으로 정의하고 쓴다.
 - lasso의 연화 문턱은 "soft-thresholding(proximal ℓ1, ISTA)", 신경 해석이 필요하면 LCA(Rozell 2008). 부호 있는 Hebbian의 전례:
