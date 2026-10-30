@@ -65,77 +65,62 @@ ARC-AGI-2.
 \section{TDP-Reasoner}
 \label{sec:method}
 
-We start from recurrent linear attention, add a memory across the recursion (the Sudoku model), and then add a rule
-head that lets the model read the demonstrations of an ARC task.
-
-\subsection{Starting point: recurrent linear attention}
-\label{sec:block}
-
-One block with shared weights is applied at steps $n = 1, 2, \dots$ of the recursion. At step $n$ it reads
+\paragraph{Block.} One block with shared weights is applied at recursion steps $n = 1, 2, \dots$. Each head reads
 \begin{equation}
-  \operatorname{read}_n = \Big(\textstyle\sum_{\tau} v_{n,\tau}\, k_{n,\tau}^{\top}\Big)\, q_n ,
-  \label{eq:linattn}
-\end{equation}
-linear attention over the tokens $\tau$ with unit-length queries and keys (QK-norm), followed by the usual residual,
-RMSNorm and feed-forward layer (Appendix~\ref{app:block}). Within a step this is ordinary attention. Across steps
-nothing is kept except the state itself.
-
-\subsection{Traces and a timing window}
-\label{sec:memory}
-
-TDP-Reasoner adds a fast weight $W$ that is carried from step to step:
-\begin{equation}
-  \operatorname{read}_n = \Big(\textstyle\sum_{\tau} v_{n,\tau}\, k_{n,\tau}^{\top} + W_n\Big)\, q_n .
+  \operatorname{read}_n = \Big(\textstyle\sum_{\tau} v_{n,\tau}\, \kt_{n,\tau}^{\top} + W_n\Big)\, \qt_n
   \label{eq:read}
 \end{equation}
-$W_n$ holds every pair of a value and a key of the same token taken at two steps $t, s \le n$, weighted by a window of
-their time difference:
+with unit-length, rotary-encoded queries and keys (QK-norm); the attention and a SwiGLU feed-forward layer each add a
+residual followed by a parameter-free RMSNorm. Without $W_n$ this is recurrent linear attention over the tokens $\tau$,
+which keeps nothing across steps but the state.
+
+\paragraph{Memory across the recursion.} $W_n$ is a fast weight carried across steps. Each token keeps decaying traces
+of its keys and values, $\bar k_r \leftarrow z_r \bar k_r + \gamma_r \kt$ and $\bar v_r \leftarrow z_r \bar v_r +
+\gamma_r v$, over $R = 4$ bands with learned complex poles $z_r = \exp(-e^{\nu_r} + i\theta_r)$ and
+$\gamma_r = \sqrt{1 - |z_r|^2}$, which keeps them bounded. Each step pairs the new value with the key traces and the new
+key with the earlier value traces,
 \begin{equation}
-  W_n = \sum_{\tau} \sum_{s,\,t \,\le\, n} \rho_{\,n-\max(s,t)}\; L(t-s)\; v_{t,\tau}\, k_{s,\tau}^{\top}.
+  W_n = (1-\eta)\, W_{n-1} + \eta \sum_{\tau} \sum_{r} \Re\!\big( a_r\, v_n \bar k_{r,n}^{\top}
+        + b_r\, z_r \bar v_{r,n-1}\, \kt_n^{\top} \big),
+  \label{eq:write}
+\end{equation}
+with learned complex $a_r, b_r$ and rate $\eta \le 1/8$. Unrolled, exactly,
+\begin{equation}
+  W_n = \sum_{\tau} \sum_{s,\,t \,\le\, n} \eta (1-\eta)^{\,n-\max(s,t)}\, L(t-s)\; v_{t,\tau}\, \kt_{s,\tau}^{\top},
+  \qquad
+  L(\Delta) = \begin{cases} \sum_r \gamma_r \Re(a_r z_r^{\Delta}) & \Delta \ge 0, \\
+                            \sum_r \gamma_r \Re(b_r z_r^{|\Delta|}) & \Delta < 0. \end{cases}
   \label{eq:pairs}
 \end{equation}
-With the key as presynaptic and the value as postsynaptic activity, this is the pair-based STDP integral
-$\Delta w = \sum W(t_{\mathrm{post}} - t_{\mathrm{pre}})\, \mathrm{post}\cdot\mathrm{pre}$: pairs in which the key came
-first ($t > s$) fall on one side of the window and pairs in which the value came first on the other, so $L$ can
-strengthen one order and weaken the other. The factor $\rho_a = \eta(1-\eta)^a$ slowly forgets old pairs and keeps $W$
-bounded. Equation~\eqref{eq:pairs} is computed online with two decaying traces per token, one of keys and one of
-values, at the cost of two matrix products per step; $L$ is a sum of a few damped complex exponentials whose poles and
-coefficients are learned (Appendix~\ref{app:memory}; Section~\ref{sec:theory} proves that the online computation is
-exact). \todo{Figure: windows learned on Sudoku.}
+With the key as presynaptic and the value as postsynaptic activity, this is the pair-based STDP integral: every pair of
+events is added once, when the later one arrives, weighted by a window of their lag whose two sides separate key-first
+from value-first pairs. The exponential STDP window is the case $R = 1$, $\theta = 0$, $a > 0$, $b < 0$. No spikes are
+needed: in a recursion like this, spiking itself carries no information of substance, and the window uses only the
+order and lag of two events, which the step index supplies. At a fixed point all pairs are equal, and $W$ reduces to a
+Hebbian term scaled by the area of the window. \todo{Figure: windows learned on Sudoku.}
 
 This is the Sudoku model: recurrent linear attention with QK-norm, plus traces and a timing window.
 
-\subsection{Reading demonstrations}
-\label{sec:rule}
-
-For ARC every example, an input grid with its output grid, is a \emph{lane} that the block processes on its own; the
-output grid is hidden in every lane, demonstration or query. The lanes of one task form a \emph{group}. After every
-block a rule head fits, for each lane, a linear map $\Theta$ from cell features $\phi$ to colours over the \emph{other}
-demonstrations of its group, one lasso step at a time:
+\paragraph{Reading demonstrations.} For ARC, each example is a lane processed on its own, with its output grid hidden;
+the lanes of a task form a group. A rule head reads the demonstrations through one per-task linear map from learned
+cell features $\phi = W_\phi h / \lVert W_\phi h \rVert$ to colours $y$,
 \begin{equation}
-  \Theta \leftarrow \operatorname{soft}_\lambda\!\big(\Theta - (\Theta C - B)\big), \qquad r = \Theta\,\phi ,
+  \Theta = \arg\min_{\Theta} \sum_{o \,\in\, \mathrm{demos}} \big\lVert y(o) - \Theta\, \phi(o) \big\rVert^2
+           + \lambda \lVert \Theta \rVert_1 , \qquad r(o) = \Theta\, \phi(o),
   \label{eq:rule}
 \end{equation}
-where $C$ and $B$ average $\phi\phi^{\top}$ and $y\,\phi^{\top}$ ($y$ the one-hot colour) over those demonstrations'
-output cells, and $\operatorname{soft}_\lambda$ is soft-thresholding. The prediction $r$ is added to the next block's
-input on the output canvas. A query never enters $C$ or $B$, so it is answered from the demonstrations alone, with no
-puzzle embedding and no test-time training. As in the Tolman--Eichenbaum machine, the features are shared structure and
-$\Theta$ binds them to content for one task; a few position frames in the rule head retrieve colours by location
-(Appendix~\ref{app:rule}).
+and feeds $r$ into the next block on the output canvas. Prior knowledge about ARC lives only in the slow features
+$\phi$. The rule is chosen by a fixed principle that does not depend on the task: the sparsest linear map that fits the
+demonstrations. The task itself is held only in the fast $\Theta$. No task is stored in the weights, so an unseen task
+needs no puzzle embedding and no test-time training. Queries never enter \eqref{eq:rule}, and each demonstration is
+fitted on the others. Each block takes one proximal-gradient step on \eqref{eq:rule}, so the rule is refined along the
+recursion together with the state.
 
-\subsection{Training and inference}
-\label{sec:training}
-
-A segment runs a fixed number of blocks and backpropagates through the last few; the state, traces, $W$ and $\Theta$
-are carried to the next segment without gradient, with a loss after every segment (TRM's deep supervision without
-halting) and TRM's stablemax cross-entropy. At inference, as in TRM, each task is run in several augmented versions and
-the answers are voted; ties are broken by how well each version predicts its own demonstrations
-(Appendix~\ref{app:block}).
-
-\section{Theory}
-\label{sec:theory}
-\todo{To be written: the writes equal the pair-based STDP integral; the window sees only the lagged cross-correlation of
-activities; recursion supplies temporal order.}
+\paragraph{Training and inference.} A segment runs a fixed number of blocks and backpropagates through the last few.
+State, traces, $W$ and $\Theta$ carry over to the next segment without gradient, with a stablemax cross-entropy loss
+after every segment (TRM's deep supervision, without halting). At inference each task runs in several dihedral and
+colour-permuted versions whose answers are voted; ties are broken by how well each version predicts its own
+demonstrations.
 
 \section{Experiments}
 \label{sec:experiments}
@@ -143,69 +128,5 @@ activities; recursion supplies temporal order.}
 
 \section{Limitations and future work}
 \todo{To be written.}
-
-\appendix
-
-\section{The block, segments and inference}
-\label{app:block}
-
-A lane's state $h \in \R^{T\times d}$ starts from a fixed vector. At step $n$, with $x$ the lane's tokens and
-$r_{n-1}$ the rule head's prediction on the output canvas,
-\begin{align*}
-  u_n &= h_{n-1} + \sqrt{d}\, e_n, \qquad
-  e_n = \operatorname{Embed}(x) + \begin{bmatrix} 0 \\ W_{\mathrm{fb}}\, r_{n-1} \end{bmatrix}, \\
-  \qt_n &= \RoPE\!\big(q_n/\lVert q_n\rVert\big), \quad
-  \kt_n = \RoPE\!\big(k_n/\lVert k_n\rVert\big), \quad
-  [q_n; k_n; v_n] = [W_q; W_k; W_v]\, u_n \quad \text{(per head)}, \\
-  h'_n &= \RMSNorm\big(u_n + W_O \operatorname{read}_n\big), \qquad
-  h_n = \RMSNorm\big(h'_n + \FFN(h'_n)\big),
-\end{align*}
-with $\operatorname{read}_n$ from \eqref{eq:read} computed per head, $\FFN$ a SwiGLU layer and parameter-free
-$\RMSNorm$. $\RoPE$ uses either fixed one-dimensional frequencies over the token index or learned angles on canvas rows
-and columns (Section~\ref{sec:experiments} says which run uses which). An ARC lane stacks the input and output canvases
-($C \times C$ each, $C = 30$) into $T = 2C^2$ tokens over \{unknown, pad, colours 0--9, end of grid\}.
-
-\todo{Segments: blocks per segment and backpropagated blocks per run; 16 segments per lane in full-scale runs, one in
-the small-grid harness. Inference: versions, inverse transforms, voting, tie-break by demonstration consistency.}
-
-\section{Computing the memory online}
-\label{app:memory}
-
-For every head and token, each band $r = 1,\dots,R$ keeps a key trace and a value trace over the steps:
-\begin{align*}
-  E^{K}_{r}(n) &= z_r\, E^{K}_{r}(n-1) + \gamma_r\, \kt_n, \qquad
-  D^{V}_{r}(n) = z_r\, E^{V}_{r}(n-1), \qquad E^{V}_{r}(n) = D^{V}_{r}(n) + \gamma_r\, v_n, \\
-  P_n &= \sum_{\tau} \sum_{r=1}^{R} \Re\!\Big( a_r\, v_n\, E^{K}_{r}(n)^{\top} + b_r\, D^{V}_{r}(n)\, \kt_n^{\top} \Big),
-  \qquad W_n = (1-\eta)\, W_{n-1} + \eta\, P_n ,
-\end{align*}
-with learned poles $z_r = \exp(-e^{\nu_r} + i\theta_r)$, $\gamma_r = \sqrt{1 - |z_r|^2}$ (the parameterisation of
-linear recurrent units with $\gamma_r$ tied to the pole), learned complex coefficients $a_r, b_r$ and a learned rate
-$\eta \le 1/8$, all per head. The window of \eqref{eq:pairs} is
-\[
-  L(\Delta) = \sum_r \gamma_r \Re\big(a_r z_r^{\Delta}\big) \ (\Delta \ge 0), \qquad
-  L(\Delta) = \sum_r \gamma_r \Re\big(b_r z_r^{|\Delta|}\big) \ (\Delta < 0),
-\]
-which contains the usual exponential STDP window ($R = 1$, $\theta = 0$, $a > 0$, $b < 0$). We use $R = 4$ bands with
-initial periods of 2, 6, 20 and 64 steps; $a_r, b_r$ start small and random. The bands are summed before the token sums,
-so a step costs two matrix products for any $R$. Traces and $W$ start at zero for a new lane.
-
-\section{Rule head}
-\label{app:rule}
-
-Features are $\phi(o) = W_\phi h(o) / \lVert W_\phi h(o) \rVert \in \R^{p}$ on the output-canvas cells $o$. For a lane
-$\ell$, with $n_\ell$ the number of labelled output cells in the other demonstration lanes $\ell'$ of its group,
-\[
-  C_\ell = \frac{1}{n_\ell} \sum_{\ell' \ne \ell} \sum_{o} \phi_{\ell'}(o)\, \phi_{\ell'}(o)^{\top}, \qquad
-  B_\ell = \frac{1}{n_\ell} \sum_{\ell' \ne \ell} \sum_{o} y_{\ell'}(o)\, \phi_{\ell'}(o)^{\top},
-\]
-and \eqref{eq:rule} is one proximal step on
-$\tfrac12 \operatorname{tr}(\Theta C_\ell \Theta^{\top}) - \operatorname{tr}(\Theta B_\ell^{\top}) + \lambda \lVert \Theta \rVert_1$,
-valid at unit step because $\lambda_{\max}(C_\ell) \le \operatorname{tr} C_\ell = 1$. The prediction has a frame term,
-$r(o) = \Theta \phi(o) + \sum_{k=0}^{K} \beta_k \kappa_k(o)$: $\kappa_0$ is the colour histogram of the lane's input
-grid and $\kappa_k$ ($k \ge 1$) a softmax read of the input grid's colour cells from cell $o$ with learned rotary
-frequencies on canvas coordinates ($K = 8$, scaled by $1/\sqrt{K+1}$); $\beta$ belongs to the same lasso. $r$ enters the
-next block through $W_{\mathrm{fb}}$, initialised at zero. The logits are
-$\operatorname{classifier}(h(o)) + \tau\, r(o)$, or an output FFN applied to $h(o) + \sqrt{d}\, W_{\mathrm{fb}} r(o)$
-(Section~\ref{sec:experiments}).
 
 \end{document}
