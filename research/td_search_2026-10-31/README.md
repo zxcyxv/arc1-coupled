@@ -182,3 +182,30 @@ The handoff rule is kept, and only V(h_{n-1}) in delta is replaced, at the first
 - Costs:
   - Correction comes after the fact: the 8 blocks have already run. Lost puzzles collapse from block 5.
   - In training, the noise of the blocks in between adds variance to delta.
+
+## 8. Lessons: about half of today's work was waste from not applying basic RL theory
+Each item below could have been settled on paper from standard TD theory before running anything.
+- **The label-free graders (C^, V, entropy, board-attention grader) as delta.**
+  - A TD error carries the true advantage only when the critic is right. Otherwise delta = advantage + critic error.
+  - One block's write is too small for a learned critic to see, so the critic-error term had to dominate.
+  - Several gate scripts measured this one fact again and again.
+- **Consolidation (section 5).**
+  - It replaced delta, the eligibility and the write all at once, instead of fixing the one broken part, delta's
+    information source.
+  - The number was good (1,968), but it answered a different question from the handoff design, and the user rejected it.
+- **Multi-cycle consolidation at inference.** It was run out of distribution (summed A, depth past training) with no
+  hypothesis worth testing.
+- **MCTS V^ (section 6).**
+  - A max over hypothesis branches values paths the root does not take. In TD + search (TD-Leaf, AlphaZero), the agent
+    follows the search; here only delta changed.
+  - So, off-policy, V^ could not judge the root's own writes. I named this risk only after building it, and the
+    control confirmed it (the top-1 branch was chosen only 38-41% of the time).
+- **The lookahead.**
+  - It is simply an n-step return, and online n-step TD (wait n blocks, then reward the buffered trace) gives the same
+    information at no compute.
+  - The user proposed the delayed version, not I.
+  - The right order would have been to start from n-step TD with an eligibility trace bridging the delay (the
+    distal-reward setting of Izhikevich 2007), and only then consider search.
+
+What was not wasted: the circularity diagnosis, the gate method (delta vs true advantage over noise draws), the
+V-information analysis, and the rule-free branch-search result (1,686 -> 2,010).
