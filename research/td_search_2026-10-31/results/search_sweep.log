@@ -1,0 +1,71 @@
+evaluator data: 4000 fresh puzzles x 4 boards; exact rate root 0.720, branches 0.331; true digit in top-3 0.995  (1s)
+   evaluator step 1000: loss 0.004, held-out AUC 0.993
+   evaluator step 2000: loss 0.000, held-out AUC 0.994
+   evaluator step 3000: loss 0.000, held-out AUC 0.994
+
+[ckpt ['bands', 'step_30000.pt'], R 16, K 3, fresh puzzles 4000]
+== test 2048 puzzles (compute 64 blocks per puzzle for the search)
+   plain recursion: block 16 1491 | block 64 (equal compute) 1686 | block 128 1706
+   search, pick by learned evaluator: 2010 | pick by lowest entropy: 2010 | label oracle over the 4 candidates (ceiling): 2013
+   evaluator AUC on test boards: 0.994; entropy AUC: 0.983
+   puzzles unsolved by the plain recursion at equal compute: 362; of those solved by the evaluator pick: 331, by entropy pick: 333, reachable (oracle): 333
+   plain-solved puzzles lost by the evaluator pick: 7, by entropy pick: 9
+   branching cell: true digit in top-3 0.995; branch with the true digit exact 0.986; branch with a wrong digit exact 0.008
+done in 9s
+evaluator data: 4000 fresh puzzles x 3 boards; exact rate root 0.720, branches 0.461; true digit in top-2 0.920  (1s)
+   evaluator step 1000: loss 0.020, held-out AUC 0.992
+   evaluator step 2000: loss 0.000, held-out AUC 0.991
+   evaluator step 3000: loss 0.000, held-out AUC 0.991
+
+[ckpt ['bands', 'step_30000.pt'], R 32, K 2, fresh puzzles 4000]
+== test 2048 puzzles (compute 80 blocks per puzzle for the search)
+   plain recursion: block 16 1491 | block 80 (equal compute) 1687 | block 128 1706
+   search, pick by learned evaluator: 1889 | pick by lowest entropy: 1837 | label oracle over the 3 candidates (ceiling): 1893
+   evaluator AUC on test boards: 0.994; entropy AUC: 0.936
+   puzzles unsolved by the plain recursion at equal compute: 361; of those solved by the evaluator pick: 263, by entropy pick: 250, reachable (oracle): 264
+   plain-solved puzzles lost by the evaluator pick: 61, by entropy pick: 100
+   branching cell: true digit in top-2 0.927; branch with the true digit exact 0.996; branch with a wrong digit exact 0.003
+done in 9s
+evaluator data: 1000 fresh puzzles x 4 boards; exact rate root 0.724, branches 0.340; true digit in top-3 0.995  (0s)
+   evaluator step 1000: loss 0.000, held-out AUC 0.987
+   evaluator step 2000: loss 0.000, held-out AUC 0.987
+   evaluator step 3000: loss 0.000, held-out AUC 0.987
+
+[ckpt ['bands', 'step_30000.pt'], R 32, K 3, fresh puzzles 1000]
+== test 2048 puzzles (compute 112 blocks per puzzle for the search)
+   plain recursion: block 16 1491 | block 112 (equal compute) 1709 | block 128 1706
+   search, pick by learned evaluator: 2007 | pick by lowest entropy: 1919 | label oracle over the 4 candidates (ceiling): 2030
+   evaluator AUC on test boards: 0.986; entropy AUC: 0.928
+   puzzles unsolved by the plain recursion at equal compute: 339; of those solved by the evaluator pick: 309, by entropy pick: 292, reachable (oracle): 326
+   plain-solved puzzles lost by the evaluator pick: 11, by entropy pick: 82
+   branching cell: true digit in top-3 0.995; branch with the true digit exact 0.996; branch with a wrong digit exact 0.014
+done in 9s
+evaluator data: 4000 fresh puzzles x 4 boards; exact rate root 0.471, branches 0.323; true digit in top-3 0.982  (1s)
+   evaluator step 1000: loss 0.219, held-out AUC 0.966
+   evaluator step 2000: loss 0.158, held-out AUC 0.969
+   evaluator step 3000: loss 0.033, held-out AUC 0.972
+
+[ckpt ['frozen', 'step_16000.pt'], R 32, K 3, fresh puzzles 4000]
+== test 2048 puzzles (compute 112 blocks per puzzle for the search)
+   plain recursion: block 16 981 | block 112 (equal compute) 1416 | block 128 1418
+   search, pick by learned evaluator: 1905 | pick by lowest entropy: 1933 | label oracle over the 4 candidates (ceiling): 1980
+   evaluator AUC on test boards: 0.968; entropy AUC: 0.848
+   puzzles unsolved by the plain recursion at equal compute: 632; of those solved by the evaluator pick: 519, by entropy pick: 541, reachable (oracle): 574
+   plain-solved puzzles lost by the evaluator pick: 30, by entropy pick: 24
+   branching cell: true digit in top-3 0.987; branch with the true digit exact 0.979; branch with a wrong digit exact 0.003
+done in 10s
+evaluator data: 4000 fresh puzzles x 4 boards; exact rate root 0.345, branches 0.311; true digit in top-3 0.975  (1s)
+   evaluator step 1000: loss 0.268, held-out AUC 0.933
+   evaluator step 2000: loss 0.161, held-out AUC 0.935
+   evaluator step 3000: loss 0.050, held-out AUC 0.941
+
+[ckpt ['frozen', 'step_14000.pt'], R 32, K 3, fresh puzzles 4000]
+== test 2048 puzzles (compute 112 blocks per puzzle for the search)
+   plain recursion: block 16 712 | block 112 (equal compute) 1236 | block 128 1237
+   search, pick by learned evaluator: 1732 | pick by lowest entropy: 1793 | label oracle over the 4 candidates (ceiling): 1911
+   evaluator AUC on test boards: 0.939; entropy AUC: 0.829
+   puzzles unsolved by the plain recursion at equal compute: 812; of those solved by the evaluator pick: 565, by entropy pick: 606, reachable (oracle): 690
+   plain-solved puzzles lost by the evaluator pick: 69, by entropy pick: 49
+   branching cell: true digit in top-3 0.979; branch with the true digit exact 0.953; branch with a wrong digit exact 0.001
+done in 10s
+ALLDONE

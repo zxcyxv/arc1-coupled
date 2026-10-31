@@ -1,0 +1,38 @@
+ckpt step 47000, blocks 8, leaf at block 4; test pairs 241, eval-task pairs 83
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  lam0 = float(model.cfg.lam_floor + F.softplus(model.lam_raw))
+learned lambda 5.55e-03; scales (0.0, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0)
+241 queries in 11s
+== all held-out tasks: 241 pairs
+   lambda x0     query exact  68  query CE 0.713  held-out demo exact  64 CE 0.689  trained demos CE 0.071
+   lambda x0.25  query exact  71  query CE 0.712  held-out demo exact  68 CE 0.688  trained demos CE 0.064
+   lambda x0.5   query exact  69  query CE 0.714  held-out demo exact  70 CE 0.686  trained demos CE 0.063
+   lambda x1     query exact  70  query CE 0.715  held-out demo exact  69 CE 0.686  trained demos CE 0.064
+   lambda x2     query exact  52  query CE 0.709  held-out demo exact  65 CE 0.695  trained demos CE 0.095
+   lambda x4     query exact  34  query CE 0.801  held-out demo exact  32 CE 0.789  trained demos CE 0.304
+   lambda x8     query exact   4  query CE 1.027  held-out demo exact   2 CE 1.031  trained demos CE 0.720
+   lambda x16    query exact   1  query CE 1.133  held-out demo exact   0 CE 1.096  trained demos CE 1.006
+   per-task lambda: default x1 70 | chosen by held-out demo CE 65 | by held-out demo exact (then CE) 65 | oracle by query CE 82 | oracle any scale exact 83
+   chosen scales (held-out demo CE): x0:57, x0.25:18, x0.5:27, x1:27, x2:34, x4:30, x8:15, x16:33
+== ARC-1 evaluation tasks: 83 pairs
+   lambda x0     query exact  25  query CE 0.596  held-out demo exact  30 CE 0.497  trained demos CE 0.049
+   lambda x0.25  query exact  27  query CE 0.592  held-out demo exact  33 CE 0.489  trained demos CE 0.042
+   lambda x0.5   query exact  27  query CE 0.588  held-out demo exact  34 CE 0.480  trained demos CE 0.042
+   lambda x1     query exact  29  query CE 0.568  held-out demo exact  34 CE 0.467  trained demos CE 0.047
+   lambda x2     query exact  20  query CE 0.561  held-out demo exact  32 CE 0.444  trained demos CE 0.072
+   lambda x4     query exact  12  query CE 0.647  held-out demo exact  16 CE 0.576  trained demos CE 0.295
+   lambda x8     query exact   1  query CE 0.941  held-out demo exact   1 CE 0.927  trained demos CE 0.761
+   lambda x16    query exact   0  query CE 1.125  held-out demo exact   0 CE 1.096  trained demos CE 1.058
+   per-task lambda: default x1 29 | chosen by held-out demo CE 27 | by held-out demo exact (then CE) 27 | oracle by query CE 31 | oracle any scale exact 32
+   chosen scales (held-out demo CE): x0:12, x0.25:9, x0.5:9, x1:13, x2:14, x4:11, x8:6, x16:9
+== training tasks: 158 pairs
+   lambda x0     query exact  43  query CE 0.775  held-out demo exact  34 CE 0.790  trained demos CE 0.083
+   lambda x0.25  query exact  44  query CE 0.775  held-out demo exact  35 CE 0.792  trained demos CE 0.076
+   lambda x0.5   query exact  42  query CE 0.781  held-out demo exact  36 CE 0.794  trained demos CE 0.074
+   lambda x1     query exact  41  query CE 0.792  held-out demo exact  35 CE 0.801  trained demos CE 0.072
+   lambda x2     query exact  32  query CE 0.787  held-out demo exact  33 CE 0.828  trained demos CE 0.108
+   lambda x4     query exact  22  query CE 0.882  held-out demo exact  16 CE 0.901  trained demos CE 0.309
+   lambda x8     query exact   3  query CE 1.073  held-out demo exact   1 CE 1.086  trained demos CE 0.698
+   lambda x16    query exact   1  query CE 1.138  held-out demo exact   0 CE 1.097  trained demos CE 0.979
+   per-task lambda: default x1 41 | chosen by held-out demo CE 38 | by held-out demo exact (then CE) 38 | oracle by query CE 51 | oracle any scale exact 51
+   chosen scales (held-out demo CE): x0:45, x0.25:9, x0.5:18, x1:14, x2:20, x4:19, x8:9, x16:24

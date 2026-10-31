@@ -1,0 +1,22 @@
+{
+ "noise_False": {
+  "plain@24": 1433,
+  "plain@72": 795,
+  "consolidation@16+48+8": 1968,
+  "consolidation@16+48+16": 1974,
+  "explicit selection@16+48": 1992
+ },
+ "noise_True": {
+  "plain@24": 1282,
+  "plain@72": 683,
+  "consolidation@16+48+8": 1954,
+  "consolidation@16+48+16": 1958,
+  "explicit selection@16+48": 1977
+ },
+ "gain": [
+  1.1693243980407715,
+  0.9333959221839905,
+  -3.0390100479125977,
+  1.7565624713897705
+ ]
+}

@@ -1,0 +1,30 @@
+step 30000 beta [2.0, 2.0, 2.0, 2.0] eta 0.125; unsolved at seg4: 79/2048
+A. third-factor part of W (beta as trained):
+   block1    |A|/|W| 0.0000  |A|/|S| 0.0000  per-block |inc|/|eta S| 0.0000
+   block4    |A|/|W| 0.0139  |A|/|S| 0.0037  per-block |inc|/|eta S| 0.0183
+   block8    |A|/|W| 0.0164  |A|/|S| 0.0074  per-block |inc|/|eta S| 0.0197
+   block16   |A|/|W| 0.0122  |A|/|S| 0.0091  per-block |inc|/|eta S| 0.0155
+   block32   |A|/|W| 0.0096  |A|/|S| 0.0089  per-block |inc|/|eta S| 0.0136
+   block64   |A|/|W| 0.0069  |A|/|S| 0.0063  per-block |inc|/|eta S| 0.0108
+   block128  |A|/|W| 0.0060  |A|/|S| 0.0055  per-block |inc|/|eta S| 0.0089
+B/C at block5_h3 (48 puzzles unsolved at seg4, 48 draws each):
+   td     vector SNR 0.147  cos(E u, -grad) median -0.008 mean -0.008 (pos 0.42)  directional SNR/draw -0.029
+   oracle vector SNR 0.153  cos(E u, -grad) median +0.070 mean +0.054 (pos 0.75)  directional SNR/draw +0.264
+   delta: state part 3.57e-03  noise part 7.30e-04  corr(delta, true advantage) -0.165
+   first-order dL from this update (beta as trained): mean -1.05e-05 rms 6.58e-04; L_future 0.597
+B/C at block5_h11 (48 puzzles unsolved at seg4, 48 draws each):
+   td     vector SNR 0.147  cos(E u, -grad) median -0.008 mean -0.010 (pos 0.40)  directional SNR/draw -0.027
+   oracle vector SNR 0.155  cos(E u, -grad) median +0.037 mean +0.038 (pos 0.67)  directional SNR/draw +0.130
+   delta: state part 3.44e-03  noise part 7.54e-04  corr(delta, true advantage) -0.060
+   first-order dL from this update (beta as trained): mean +9.56e-05 rms 1.94e-03; L_future 0.544
+B/C at block17_h11 (48 puzzles unsolved at seg4, 48 draws each):
+   td     vector SNR 0.149  cos(E u, -grad) median -0.001 mean +0.009 (pos 0.48)  directional SNR/draw -0.005
+   oracle vector SNR 0.154  cos(E u, -grad) median +0.131 mean +0.135 (pos 1.00)  directional SNR/draw +0.515
+   delta: state part 6.85e-03  noise part 6.08e-04  corr(delta, true advantage) +0.098
+   first-order dL from this update (beta as trained): mean -5.46e-06 rms 9.46e-04; L_future 0.529
+B/C at block41_h11 (48 puzzles unsolved at seg4, 48 draws each):
+   td     vector SNR 0.148  cos(E u, -grad) median -0.007 mean -0.003 (pos 0.42)  directional SNR/draw -0.034
+   oracle vector SNR 0.156  cos(E u, -grad) median +0.125 mean +0.131 (pos 0.92)  directional SNR/draw +0.506
+   delta: state part 1.13e-03  noise part 4.91e-04  corr(delta, true advantage) -0.012
+   first-order dL from this update (beta as trained): mean -2.18e-05 rms 1.06e-03; L_future 0.945
+done in 1s

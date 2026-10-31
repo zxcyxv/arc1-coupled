@@ -1,0 +1,29 @@
+[32mActivated conda/uv virtual environment at [36m/venv/main[0m
+[HEADS] frozen runs/tf6_hard/bands/step_30000.pt (step 30000); trainable ['tf_heads.0.weight', 'tf_heads.0.bias', 'tf_heads.2.weight', 'tf_heads.2.bias']; 30000 steps, 128 lanes, 4 x 4 blocks, noise 0.1, g 0.96875
+[HEADS] step 2500 c_loss 0.27976 v_loss 0.006434 |delta| 0.01650 (24s)
+[HEADS] step 5000 c_loss 0.26409 v_loss 0.001813 |delta| 0.00800 (47s)
+[HEADS] step 7500 c_loss 0.26148 v_loss 0.001639 |delta| 0.00727 (70s)
+[HEADS] step 10000 c_loss 0.25925 v_loss 0.001654 |delta| 0.00731 (94s)
+[HEADS] step 12500 c_loss 0.25766 v_loss 0.001602 |delta| 0.00735 (117s)
+[HEADS] step 15000 c_loss 0.26148 v_loss 0.001564 |delta| 0.00731 (141s)
+[HEADS] step 17500 c_loss 0.26045 v_loss 0.001494 |delta| 0.00718 (164s)
+[HEADS] step 20000 c_loss 0.26006 v_loss 0.001492 |delta| 0.00723 (188s)
+[HEADS] step 22500 c_loss 0.25624 v_loss 0.001503 |delta| 0.00732 (211s)
+[HEADS] step 25000 c_loss 0.26115 v_loss 0.001483 |delta| 0.00726 (235s)
+[HEADS] step 27500 c_loss 0.25950 v_loss 0.001471 |delta| 0.00718 (258s)
+[HEADS] step 30000 c_loss 0.25343 v_loss 0.001431 |delta| 0.00714 (281s)
+[HEADS] saved runs/tf6_hard/heads/heads_30000.pt (281s)
+/tmp/claude-0/-workspace-arc1-coupled/d75a75c0-c7a3-4695-9045-6f537b19fbb0/scratchpad/gate_vhat.py:49: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  assert m.config.three_factor and float(m.block.tf_beta.abs().max()) == 0.0
+[GATE] runs/tf6_hard/heads/heads_30000.pt (heads step 30000, frozen runs/tf6_hard/bands/step_30000.pt); K 3, R 8, D 16, H 8, g 0.96875, sigma 0.1; 2048 test puzzles
+== boundary 4 blocks: root exact 0/2048; heads: corr(C^, CE) +0.651, corr(V, -L(b+8)) +0.188
+   A. true digit in top-3 0.948; picks the true digit: R-step return 0.869 | leaf V 0.868 | entropy 0.872; mean V^ - V +0.0386
+   B. 512 puzzles not exact, 16 draws: median corr(delta, true adv) with V -0.059 (pos 0.43) | with V^ +0.234 (pos 0.73) | with max leaf V +0.196; std over draws: adv 1.19e-02, delta(V) 1.18e-03, delta(V^) 7.28e-03 (1s)
+== boundary 8 blocks: root exact 298/2048; heads: corr(C^, CE) +0.613, corr(V, -L(b+8)) +0.269
+   A. true digit in top-3 0.986; picks the true digit: R-step return 0.884 | leaf V 0.881 | entropy 0.889; mean V^ - V +0.0229
+   B. 512 puzzles not exact, 16 draws: median corr(delta, true adv) with V -0.050 (pos 0.40) | with V^ +0.261 (pos 0.77) | with max leaf V +0.159; std over draws: adv 4.02e-03, delta(V) 1.17e-03, delta(V^) 3.61e-03 (2s)
+== boundary 12 blocks: root exact 1179/2048; heads: corr(C^, CE) +0.730, corr(V, -L(b+8)) +0.430
+   A. true digit in top-3 0.994; picks the true digit: R-step return 0.898 | leaf V 0.889 | entropy 0.900; mean V^ - V +0.0212
+   B. 512 puzzles not exact, 16 draws: median corr(delta, true adv) with V -0.007 (pos 0.50) | with V^ +0.199 (pos 0.69) | with max leaf V +0.066; std over draws: adv 1.00e-02, delta(V) 1.22e-03, delta(V^) 4.48e-03 (3s)
+[GATE] done in 3s -> runs/tf6_hard/heads/gate_vhat.json

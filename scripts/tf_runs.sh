@@ -7,15 +7,19 @@
 #   bash scripts/tf_runs.sh status          per arm: worker PID, last log line, last [EVAL] / [EXTRAP] / [TF]; GPUs; disk
 #   bash scripts/tf_runs.sh stop [ARM...]   SIGTERM to the arm's python worker: it checkpoints and exits
 # Arms (only these flags differ): bands = the bands EMA model; tf_zero = three_factor (W from 0 every puzzle);
-#   tf_w0 = three_factor + w0_learned (W from a learned W0 every puzzle); w0 = w0_learned alone (control for W0).
+#   tf_w0 = three_factor + w0_learned (W from a learned W0 every puzzle); w0 = w0_learned alone (control for W0);
+#   tf_np = three_factor + node-perturbation eligibility (needs tf_noise > 0 in EXTRA, which every arm then shares);
+#   tf_np_s100 = tf_np with beta = 100 x its parameter (Adam moves it 100x faster), from 0; tf_np_b2 = the same from beta 2;
+#   tf_np_fix_p2 / _m2 = tf_np with the term detached (tf_rule_only), beta fixed at +2 / -2.
 # Environment: CONFIG (configs/tf/base.json), EXTRA (more KEY=VALUE overrides for every arm), GPUS (e.g. "0 1 2"),
-#   VENV (/venv/main). Rerunning start on a stopped arm resumes it (same --out); a changed config is refused.
+#   VENV (/venv/main), RUNS (output root, runs/tf). Rerunning start on a stopped arm resumes it (same --out); a changed config is refused.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 VENV=${VENV:-/venv/main}
 [ -f "$VENV/bin/activate" ] && . "$VENV/bin/activate"
 CONFIG=${CONFIG:-configs/tf/base.json}
 ARMS_DEFAULT="bands tf_zero tf_w0"
+RUNS=${RUNS:-runs/tf}
 
 flags() {
   case "$1" in
@@ -23,12 +27,17 @@ flags() {
     tf_zero) echo "three_factor=true" ;;
     tf_w0)   echo "three_factor=true w0_learned=true" ;;
     w0)      echo "w0_learned=true" ;;
-    *) echo "unknown arm $1 (bands, tf_zero, tf_w0, w0)" >&2; return 1 ;;
+    tf_np)   echo "three_factor=true tf_elig_noise=true" ;;
+    tf_np_s100) echo "three_factor=true tf_elig_noise=true tf_beta_scale=100" ;;
+    tf_np_b2)   echo "three_factor=true tf_elig_noise=true tf_beta_scale=100 tf_beta_init=2" ;;
+    tf_np_fix_p2) echo "three_factor=true tf_elig_noise=true tf_beta_init=2 tf_rule_only=true" ;;
+    tf_np_fix_m2) echo "three_factor=true tf_elig_noise=true tf_beta_init=-2 tf_rule_only=true" ;;
+    *) echo "unknown arm $1 (bands, tf_zero, tf_w0, w0, tf_np, tf_np_s100, tf_np_b2, tf_np_fix_p2, tf_np_fix_m2)" >&2; return 1 ;;
   esac
 }
 
 worker_pids() {  # the lt.train python process of runs/tf/$1 (not the wrapper shell)
-  ps -eo pid=,args= | awk -v o="--out runs/tf/$1" 'index($0, o) && index($0, "-m lt.train") && !index($0, "bash -c") {print $1}'
+  ps -eo pid=,args= | awk -v o="--out $RUNS/$1" 'index($0, o) && index($0, "-m lt.train") && !index($0, "bash -c") {print $1}'
 }
 
 setup() {
@@ -53,9 +62,9 @@ start() {
   [ ${#arms[@]} -eq 0 ] && read -r -a arms <<< "$ARMS_DEFAULT"
   read -r -a gpus <<< "${GPUS:-$(seq -s ' ' 0 $(( $(nvidia-smi -L | wc -l) - 1 )))}"
   [ ${#arms[@]} -le ${#gpus[@]} ] || { echo "${#arms[@]} arms but ${#gpus[@]} GPUs (set GPUS or name fewer arms)"; exit 1; }
-  mkdir -p runs/tf
+  mkdir -p "$RUNS"
   for arm in "${arms[@]}"; do
-    local f out="runs/tf/$arm"
+    local f out="$RUNS/$arm"
     f=$(flags "$arm")
     if [ -n "$(worker_pids "$arm")" ]; then echo "$arm already running (PID $(worker_pids "$arm"))"; i=$((i + 1)); continue; fi
     mkdir -p "$out"
@@ -69,7 +78,7 @@ start() {
 }
 
 status() {
-  for d in runs/tf/*/; do
+  for d in "$RUNS"/*/; do
     local arm
     arm=$(basename "$d")
     echo "== $arm: worker $(worker_pids "$arm" | tr '\n' ' ')"

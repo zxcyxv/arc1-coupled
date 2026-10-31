@@ -1,7 +1,7 @@
 """Sudoku-Extreme 1k data: checked loading, the fixed augmentation pool and the URM batch stream.
 
 The NPZ holds raw digits (train_inputs/test_inputs 0..n with 0 = blank, labels 1..n); tokens are digit + 1. The board
-size n (a square: 4 or 9) is read from the arrays; 9 is the Sudoku-Extreme data, smaller boards are toy sets.
+size n (4 or 9 with square boxes, or 6 with 2x3 boxes) is read from the arrays; 9 is the Sudoku-Extreme data, smaller boards are toy sets.
 Training puzzle g has 1 + num_aug versions: the original and num_aug augmentations (digit permutation, transpose,
 band/stack and row/column-within-band permutations) drawn from a Philox stream keyed by (seed, g, index), so the pool
 is fixed by the seed. Every iterator covers eval_interval epochs; each epoch visits every puzzle once in a random
@@ -23,15 +23,24 @@ def _box(n):
     return b
 
 
-def _draw_aug_params(rng, n=9):
-    """Draw order (digits, transpose, bands, rows in each band, stacks, columns in each stack) is the historical 9x9 one."""
+def _box_shape(n):
+    """(rows, columns) of a box: b x b for square n, 2 x 3 for 6 (6x6 Sudoku)."""
+    if n == 6:
+        return 2, 3
     b = _box(n)
+    return b, b
+
+
+def _draw_aug_params(rng, n=9):
+    """Draw order (digits, transpose, bands, rows in each band, stacks, columns in each stack) is the historical 9x9 one.
+    Non-square boxes (6x6: 2x3) draw no transpose, which would turn 2x3 boxes into 3x2."""
+    br, bc = _box_shape(n)
     digits = np.pad(rng.permutation(np.arange(1, n + 1)), (1, 0))
-    trans = rng.random() < 0.5
-    bands = rng.permutation(b)
-    rows = np.concatenate([i * b + rng.permutation(b) for i in bands])
-    stacks = rng.permutation(b)
-    cols = np.concatenate([s * b + rng.permutation(b) for s in stacks])
+    trans = rng.random() < 0.5 if br == bc else False
+    bands = rng.permutation(n // br)
+    rows = np.concatenate([i * br + rng.permutation(br) for i in bands])
+    stacks = rng.permutation(n // bc)
+    cols = np.concatenate([s * bc + rng.permutation(bc) for s in stacks])
     return digits, trans, rows, cols
 
 
@@ -458,7 +467,7 @@ def _check_symbols(x, y, name, symbols):
 
 def _check_boards(x, y, name, boxes=True):
     n = x.shape[-1] if x.ndim == 3 else int(round(x.shape[-1] ** 0.5))
-    b = _box(n)
+    br, bc = _box_shape(n)
     x, y = x.reshape(-1, n, n), y.reshape(-1, n, n)
     if x.shape != y.shape or len(x) == 0:
         raise ValueError(f'{name}: expected matching nonempty [N,{n},{n}] arrays; got {x.shape}, {y.shape}.')
@@ -468,7 +477,7 @@ def _check_boards(x, y, name, boxes=True):
     if not ((x == 0) | (x == y)).all():
         raise ValueError(f'{name}: clues do not match solutions.')
     digits = np.arange(1, n + 1)
-    box_cells = y.reshape(-1, b, b, b, b).transpose(0, 1, 3, 2, 4).reshape(-1, n, n)
+    box_cells = y.reshape(-1, n // br, br, n // bc, bc).transpose(0, 1, 3, 2, 4).reshape(-1, n, n)
     box_ok = (np.sort(box_cells, axis=2) == digits).all() if boxes else True
     if not ((np.sort(y, axis=2) == digits).all() and (np.sort(y, axis=1) == digits[None, :, None]).all() and box_ok):
         raise ValueError(f'{name}: at least one solution is not a valid Sudoku.')

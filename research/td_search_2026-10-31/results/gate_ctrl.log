@@ -1,0 +1,14 @@
+/tmp/claude-0/-workspace-arc1-coupled/d75a75c0-c7a3-4695-9045-6f537b19fbb0/scratchpad/gate_ctrl.py:44: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  assert m.config.three_factor and float(m.block.tf_beta.abs().max()) == 0.0
+[CTRL] runs/tf6_hard/heads/heads_30000.pt; K 3, R 8, D 16, horizons (8, 16), seed 0, g 0.96875, sigma 0.1
+== boundary 4: 512 puzzles not exact, 16 draws; V^ takes the top-1 digit 0.382; corr(V^, control) over draws +0.281
+   H= 8: median corr(delta, true adv)  V -0.072 (0.42) | V^ +0.279 (0.75) | leaf V +0.203 (0.69) | control (lookahead, no hypothesis) +0.961 (0.82); adv std 1.22e-02
+   H=16: median corr(delta, true adv)  V -0.053 (0.42) | V^ +0.215 (0.71) | leaf V +0.167 (0.69) | control (lookahead, no hypothesis) +0.709 (0.83); adv std 6.07e-05
+== boundary 8: 512 puzzles not exact, 16 draws; V^ takes the top-1 digit 0.394; corr(V^, control) over draws +0.319
+   H= 8: median corr(delta, true adv)  V -0.093 (0.40) | V^ +0.262 (0.72) | leaf V +0.141 (0.62) | control (lookahead, no hypothesis) +0.877 (0.87); adv std 4.14e-03
+   H=16: median corr(delta, true adv)  V -0.048 (0.43) | V^ +0.153 (0.69) | leaf V +0.121 (0.65) | control (lookahead, no hypothesis) +0.421 (0.80); adv std 2.87e-05
+== boundary 12: 512 puzzles not exact, 16 draws; V^ takes the top-1 digit 0.411; corr(V^, control) over draws +0.354
+   H= 8: median corr(delta, true adv)  V -0.015 (0.48) | V^ +0.237 (0.67) | leaf V +0.082 (0.58) | control (lookahead, no hypothesis) +0.825 (0.74); adv std 9.90e-03
+   H=16: median corr(delta, true adv)  V -0.014 (0.48) | V^ +0.106 (0.61) | leaf V +0.040 (0.56) | control (lookahead, no hypothesis) +0.184 (0.63); adv std 3.73e-04
+[CTRL] done in 3s -> runs/tf6_hard/heads/gate_ctrl.json

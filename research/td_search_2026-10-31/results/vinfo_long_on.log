@@ -1,0 +1,17 @@
+
+[noise on] 1024 blocks, 28s
+   exact at block   16: 1409/2048   ever solved by then: 1424
+   exact at block   32: 1696/2048   ever solved by then: 1712
+   exact at block   64: 1615/2048   ever solved by then: 1751
+   exact at block  128: 1643/2048   ever solved by then: 1772
+   exact at block  256: 1629/2048   ever solved by then: 1773
+   exact at block  512: 1615/2048   ever solved by then: 1777
+   exact at block  768: 1618/2048   ever solved by then: 1779
+   exact at block 1024: 1611/2048   ever solved by then: 1779
+unsolved at block 128: 405; of those exact at some block in 129..1024: 46; exact at block 1024: 20
+   never-solved (359): blocks 16-32 mean churn 0.0744 (fraction of blank cells whose argmax changes per block); share with churn > 0.001: 0.85
+   never-solved (359): blocks 64-128 mean churn 0.0350 (fraction of blank cells whose argmax changes per block); share with churn > 0.001: 0.63
+   never-solved (359): blocks 128-256 mean churn 0.0348 (fraction of blank cells whose argmax changes per block); share with churn > 0.001: 0.45
+   never-solved (359): blocks 512-1024 mean churn 0.0308 (fraction of blank cells whose argmax changes per block); share with churn > 0.001: 0.35
+late solvers (46), first solve block median 152: mean I_V aligned to the solve: -128: 1.25 (n 46), -64: 1.29 (n 46), -32: 1.23 (n 46), -16: 1.30 (n 46), -8: 1.36 (n 46), +0: 1.51 (n 46), +8: 1.59 (n 46), +32: 1.58 (n 46)
+   for comparison, never-solved mean I_V at blocks 128 / 512 / 1024: 0.17 / 0.09 / 0.08

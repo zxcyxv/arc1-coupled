@@ -193,6 +193,14 @@ class ModelConfig:
     tf_head_weight: float = 1.0       # three_factor: weight of the head losses (they reach the head only)
     tf_noise: float = 0.0             # bands EMA: exploration noise on v, std tf_noise * rms(v) per token (training only)
     tf_noise_eval: bool = False       # tf_noise in evaluation too
+    tf_beta_scale: float = 1.0        # beta = tf_beta_scale * parameter (a larger step for beta under Adam, whose step
+                                      # per update is about lr whatever the gradient scale)
+    tf_beta_init: float = 0.0         # initial beta of every head (0: the start is the model without the third factor)
+    tf_rule_only: bool = False        # the third-factor term enters W without gradient (beta and C detached): a fixed
+                                      # plasticity rule (beta stays at tf_beta_init) that backprop cannot tune or switch off
+    tf_elig_noise: bool = False       # node perturbation: the eligibility trace takes the injected noise instead of the
+                                      # whole write, C_n = lam C_{n-1} + (1 - lam) (xi / sigma^2)^T k~ with xi the noise
+                                      # added to v (sigma = tf_noise); needs three_factor and tf_noise > 0
     w0_learned: bool = False          # bands EMA: W starts each puzzle at a learned matrix W0 (an embedding of H D^2 per
                                       # puzzle identifier, reshaped to [H, D, D]; zero at the start) instead of 0. Computed
                                       # as W_n = W~_n + (1 - eta)^n W0 (n blocks since the puzzle start, W~_0 = 0; the
@@ -291,6 +299,10 @@ class ModelConfig:
         if not (0 < self.tf_gamma < 1 and self.tf_elig_tau > 1 and self.tf_head_dim > 0 and self.tf_noise >= 0
                 and self.ce in ('stablemax', 'softmax')):
             raise ValueError('0 < tf_gamma < 1, tf_elig_tau > 1, tf_head_dim > 0, tf_noise >= 0, ce stablemax | softmax')
+        if self.tf_beta_scale <= 0:
+            raise ValueError('tf_beta_scale must be > 0')
+        if self.tf_elig_noise and not (self.three_factor and self.tf_noise > 0):
+            raise ValueError('tf_elig_noise needs three_factor and tf_noise > 0')
 
     @property
     def outer_memory(self) -> bool:
@@ -510,7 +522,7 @@ class Block(nn.Module):
         if cfg.outer_eta_learn:                                              # no random draw: the init stays as without it
             self.eta_raw = nn.Parameter(torch.full((H,), math.log(cfg.outer_eta / (1 - cfg.outer_eta))))
         if cfg.three_factor:                                                 # no random draw either
-            self.tf_beta = nn.Parameter(torch.zeros(H))                         # signed gain of delta per head
+            self.tf_beta = nn.Parameter(torch.full((H,), cfg.tf_beta_init / cfg.tf_beta_scale))   # signed gain of delta per head (x tf_beta_scale)
             lam = 1 - 1 / cfg.tf_elig_tau
             self.tf_lam_raw = nn.Parameter(torch.full((H,), math.log(lam / (1 - lam))), requires_grad=cfg.tf_elig_learn)
         if cfg.event_stdp and cfg.event_theta > 0:                           # theta_i^2 = softplus(raw_i); rows q^/k^, v
@@ -902,8 +914,10 @@ class LT(nn.Module):
                 qr, kr = self.frame_rotate(qr, clock), self.frame_rotate(kr, clock)
                 clock = new_clock
             v = v.to(dtype) * (self.cur_valid.to(dtype)[:, None, :, None] if cfg.ctx_packed else 1)
+            xi = None
             if tf is not None and tf[4] is not None:     # exploration noise on the value (write and read alike)
-                v = v + tf[4].to(dtype) * v.pow(2).mean(-1, keepdim=True).sqrt().detach()
+                xi = tf[4].to(dtype) * v.pow(2).mean(-1, keepdim=True).sqrt().detach()
+                v = v + xi
             B, H, T, D = v.shape
             if cfg.band_product and self.use_band_kernel(q.device, dtype):
                 from .band_kernel import band_product
@@ -929,7 +943,10 @@ class LT(nn.Module):
             s = mm(v.transpose(-1, -2), k_mix) + mm(v_mix.transpose(-1, -2), kr)
             w, m = self.accumulate(w, s, dtype)
             if tf is not None:
-                w, m, tf = self.tf_write(w, s, tf, dtype)
+                e = None
+                if cfg.tf_elig_noise and xi is not None:     # node perturbation: (xi / sigma^2)^T k~
+                    e = mm(xi.transpose(-1, -2), kr) / cfg.tf_noise ** 2
+                w, m, tf = self.tf_write(w, s, tf, dtype, e)
             read = mm(qr, ((mm(v.transpose(-1, -2), kr) if cfg.hebb else s) + m).transpose(-1, -2))
             ev_re = dv_re + gamma * v.unsqueeze(3)
             ek = torch.stack((ek_re, ek_im), 3).reshape(B, H, T, -1)
@@ -940,22 +957,28 @@ class LT(nn.Module):
             return read, (clock, ek, ev, w, prev), tf
         return read, (clock, ek, ev, w, prev)
 
-    def tf_write(self, w, s, tf, dtype):
+    def tf_write(self, w, s, tf, dtype, e=None):
         """three_factor and w0_learned on this block's EMA step w = (1 - eta) W~_{n-1} + eta S_n. Returns W~_n (carried),
         the W_n the read uses and the new tf state (C_n, ...):
 
             W~_n = (1 - eta) W~_{n-1} + eta S_n + eta beta_h delta_n C_{n-1},   C_n = lam C_{n-1} + (1 - lam) S_n
-            W_n = W~_n + (1 - eta)^n W0                                          (w0_learned; else W_n = W~_n)"""
+            W_n = W~_n + (1 - eta)^n W0                                          (w0_learned; else W_n = W~_n)
+
+        e (tf_elig_noise, node perturbation) replaces S_n in the C update: C_n = lam C_{n-1} + (1 - lam) e. Without
+        noise (evaluation with tf_noise_eval off) e is zero."""
         cfg, L = self.config, self.block
         elig, delta, n, w0, _ = tf
         eta = L.eta(cfg)
         eta = eta.to(dtype)[None, :, None, None] if torch.is_tensor(eta) else eta
         if cfg.three_factor:
             elig = elig.to(dtype)
-            gain = eta * L.tf_beta.to(dtype)[None, :, None, None] * delta.to(dtype)[:, None, None, None]
-            w = w + gain * elig
+            gain = eta * (cfg.tf_beta_scale * L.tf_beta).to(dtype)[None, :, None, None] * delta.to(dtype)[:, None, None, None]
+            w = w + ((gain * elig).detach() if cfg.tf_rule_only else gain * elig)
             lam = L.tf_lam().to(dtype)[None, :, None, None]
-            elig = lam * elig + (1 - lam) * s
+            if cfg.tf_elig_noise:
+                elig = lam * elig + ((1 - lam) * e if e is not None else 0)
+            else:
+                elig = lam * elig + (1 - lam) * s
         m = w
         if w0 is not None:
             keep = torch.log1p(-eta) if torch.is_tensor(eta) else math.log1p(-eta)

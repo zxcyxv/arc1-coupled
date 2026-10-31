@@ -1,0 +1,17 @@
+step 30000; unsolved at seg4: 79
+== block5_h3 (64 puzzles unsolved at seg4; base CE 0.581, exact 0/64)
+   cos(grad of label-free objective, grad of true CE) wrt W~, median (frac>0): chat -0.379 (0.16), negv -0.384 (0.23), ent -0.079 (0.41)
+   descend ce  : |dW|=0.01|W|: dCE -0.018 dexact +0 dacc +0.003  |dW|=0.03|W|: dCE -0.053 dexact +1 dacc +0.010  |dW|=0.1|W|: dCE -0.150 dexact +1 dacc +0.048  |dW|=0.3|W|: dCE -0.280 dexact +6 dacc +0.134  |dW|=1|W|: dCE -0.195 dexact +1 dacc +0.093
+   descend chat: |dW|=0.01|W|: dCE +0.007 dexact +0 dacc -0.000  |dW|=0.03|W|: dCE +0.022 dexact +0 dacc +0.002  |dW|=0.1|W|: dCE +0.080 dexact +0 dacc +0.001  |dW|=0.3|W|: dCE +0.213 dexact +0 dacc -0.003  |dW|=1|W|: dCE +0.355 dexact +0 dacc -0.002
+   descend ent : |dW|=0.01|W|: dCE +0.000 dexact +0 dacc +0.001  |dW|=0.03|W|: dCE +0.002 dexact +0 dacc +0.001  |dW|=0.1|W|: dCE +0.018 dexact +0 dacc +0.003  |dW|=0.3|W|: dCE +0.095 dexact +0 dacc +0.005  |dW|=1|W|: dCE +0.207 dexact +0 dacc -0.010
+== block17_h11 (64 puzzles unsolved at seg4; base CE 0.473, exact 32/64)
+   cos(grad of label-free objective, grad of true CE) wrt W~, median (frac>0): chat +0.353 (0.62), negv +0.379 (0.62), ent +0.549 (0.72)
+   descend ce  : |dW|=0.01|W|: dCE -0.055 dexact +0 dacc +0.014  |dW|=0.03|W|: dCE -0.139 dexact +3 dacc +0.050  |dW|=0.1|W|: dCE -0.238 dexact +10 dacc +0.090  |dW|=0.3|W|: dCE -0.191 dexact +6 dacc +0.067  |dW|=1|W|: dCE +0.696 dexact -28 dacc -0.196
+   descend chat: |dW|=0.01|W|: dCE +0.021 dexact +0 dacc -0.003  |dW|=0.03|W|: dCE +0.069 dexact +0 dacc -0.004  |dW|=0.1|W|: dCE +0.177 dexact +0 dacc -0.008  |dW|=0.3|W|: dCE +0.258 dexact +0 dacc -0.016  |dW|=1|W|: dCE +0.679 dexact -25 dacc -0.141
+   descend ent : |dW|=0.01|W|: dCE +0.004 dexact +0 dacc +0.002  |dW|=0.03|W|: dCE +0.026 dexact +0 dacc +0.004  |dW|=0.1|W|: dCE +0.094 dexact +1 dacc +0.006  |dW|=0.3|W|: dCE +0.182 dexact -3 dacc -0.016  |dW|=1|W|: dCE +1.019 dexact -31 dacc -0.253
+== block41_h11 (64 puzzles unsolved at seg4; base CE 0.820, exact 30/64)
+   cos(grad of label-free objective, grad of true CE) wrt W~, median (frac>0): chat +0.095 (0.52), negv +0.325 (0.55), ent +0.438 (0.64)
+   descend ce  : |dW|=0.01|W|: dCE -0.045 dexact +0 dacc +0.008  |dW|=0.03|W|: dCE -0.105 dexact +0 dacc +0.017  |dW|=0.1|W|: dCE -0.218 dexact +0 dacc +0.036  |dW|=0.3|W|: dCE -0.208 dexact -4 dacc +0.025  |dW|=1|W|: dCE +0.849 dexact -29 dacc -0.297
+   descend chat: |dW|=0.01|W|: dCE +0.028 dexact +0 dacc -0.001  |dW|=0.03|W|: dCE +0.078 dexact +0 dacc -0.000  |dW|=0.1|W|: dCE +0.159 dexact +0 dacc -0.002  |dW|=0.3|W|: dCE +0.201 dexact +0 dacc -0.010  |dW|=1|W|: dCE +0.677 dexact -28 dacc -0.168
+   descend ent : |dW|=0.01|W|: dCE +0.019 dexact +0 dacc -0.001  |dW|=0.03|W|: dCE +0.055 dexact +0 dacc -0.000  |dW|=0.1|W|: dCE +0.090 dexact +0 dacc -0.000  |dW|=0.3|W|: dCE +0.130 dexact -4 dacc -0.013  |dW|=1|W|: dCE +1.011 dexact -29 dacc -0.306
+done in 1s

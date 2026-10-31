@@ -53,7 +53,7 @@ DEFAULTS = dict(
     local_conv=False, frame_rope=False, ctx_packed=False, grad_blocks=0, rule_path=False,
     rule_prior_emb=0, rule_prior_dropout=0.5, rule_write_bias=-2.0, rule_theta_init=1e-3, rule_prior_pe=False, ctx_versions=False,
     three_factor=False, tf_gamma=0.96875, tf_elig_tau=4.0, tf_elig_learn=True, tf_head_dim=128, tf_head_weight=1.0,
-    tf_noise=0.0, tf_noise_eval=False, w0_learned=False,
+    tf_noise=0.0, tf_noise_eval=False, tf_elig_noise=False, tf_beta_scale=1.0, tf_beta_init=0.0, tf_rule_only=False, w0_learned=False,
     w0_decay=False,                   # weight decay on the W0 table (default none: an initial state, like init_hidden)
     # data
     data_npz=None, test_size=2048, num_aug=1000,
@@ -83,7 +83,7 @@ RECIPE_KEYS = ('hidden_size', 'num_heads', 'blocks_per_seg', 'loops', 'mlp_expan
                'rope', 'rope_base',
                'fast_ffn', 'fast_ffn_eta', 'fast_ffn_decay', 'local_conv', 'frame_rope', 'ctx_packed', 'grad_blocks', 'rule_path', 'rule_prior_emb', 'rule_prior_dropout', 'rule_write_bias', 'rule_theta_init', 'rule_prior_pe', 'ctx_versions', 'init_from', 'init_weights',
                'three_factor', 'tf_gamma', 'tf_elig_tau', 'tf_elig_learn', 'tf_head_dim', 'tf_head_weight', 'tf_noise',
-               'tf_noise_eval', 'w0_learned', 'w0_decay',
+               'tf_noise_eval', 'tf_elig_noise', 'tf_beta_scale', 'tf_beta_init', 'tf_rule_only', 'w0_learned', 'w0_decay',
                'num_aug', 'test_size', 'ce', 'decay_all',
                'global_batch_size', 'epochs', 'eval_interval', 'lr', 'lr_warmup_steps', 'lr_warmup_start', 'weight_decay', 'beta1',
                'beta2', 'puzzle_emb_lr', 'puzzle_emb_weight_decay', 'ema_rate', 'ema_puzzle_emb', 'seed',
@@ -588,7 +588,7 @@ def evaluate(model, ema, x, y, cfg, rank, ws, device, step, deadline=float('inf'
         print(f'[WIN] step {step} (ema) lam+ {fmt(lp)} lam- {fmt(lm)} A+ {fmt(ap)} A- {fmt(am)}', flush=True)
     if model.config.three_factor:
         with ema.swap(model):
-            beta, lam = model.block.tf_beta.detach().tolist(), model.block.tf_lam().detach().tolist()
+            beta, lam = (model.config.tf_beta_scale * model.block.tf_beta).detach().tolist(), model.block.tf_lam().detach().tolist()
         fmt = lambda v: '[' + ' '.join(f'{e:+.4f}' for e in v) + ']'
         d_last, a_last, c_last, ce_last = (float(sums[r, -1]) / n for r in (3, 4, 5, 6))
         print(f'[TF] step {step} (ema) beta {fmt(beta)} lam {fmt(lam)}; last segment delta {d_last:+.2e} '
@@ -893,7 +893,7 @@ def main(cfg):
               + (f"THREE-FACTOR gamma {mc.tf_gamma:g} elig_tau {mc.tf_elig_tau:g} (learn {mc.tf_elig_learn}) "
                  f"head {mc.tf_head_dim} weight {mc.tf_head_weight:g}; " if mc.three_factor else '')
               + (f"W0 learned (decay {cfg['w0_decay']}); " if mc.w0_learned else '')
-              + (f"v noise {mc.tf_noise:g} (eval {mc.tf_noise_eval}); " if mc.tf_noise else '')
+              + (f"v noise {mc.tf_noise:g} (eval {mc.tf_noise_eval}){' NODE-PERTURBATION eligibility' if mc.tf_elig_noise else ''}; " if mc.tf_noise else '')
               + f"stop_at {stop_at}; "
               + (f"RESUME {ckpt} step {state['step']}" if ckpt else 'NEW RUN') + f'; out {out_dir}', flush=True)
     if ctx is not None:

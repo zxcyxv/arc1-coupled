@@ -1,0 +1,18 @@
+ckpt step 47000, blocks 8, leaf at block 4; test pairs 241, eval-task pairs 83
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  lam0 = float(model.cfg.lam_floor + F.softplus(model.lam_raw))
+learned lambda 5.55e-03; scales (0.0, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0)
+version 0 done 11s
+version 1 done 22s
+version 2 done 33s
+version 3 done 44s
+version 4 done 55s
+version 5 done 65s
+version 6 done 76s
+version 7 done 87s
+== all held-out tasks: 241 queries (version 0 scored)
+   default x1 70 | by held demo CE, version 0 only 65 | by held demo CE averaged over 8 augmented versions 66 | by held demo exact rate over versions (then CE) 65 | oracle 83
+   held-demo exact rate over versions vs query exact rate over versions (learned lambda): corr +0.703; query exact rate where held rate >= 0.5: 0.71 (n 71), < 0.5: 0.09
+== ARC-1 evaluation tasks: 83 queries (version 0 scored)
+   default x1 29 | by held demo CE, version 0 only 27 | by held demo CE averaged over 8 augmented versions 26 | by held demo exact rate over versions (then CE) 26 | oracle 32
+   held-demo exact rate over versions vs query exact rate over versions (learned lambda): corr +0.679; query exact rate where held rate >= 0.5: 0.65 (n 33), < 0.5: 0.08

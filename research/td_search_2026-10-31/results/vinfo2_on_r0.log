@@ -1,0 +1,55 @@
+
+[noise on, memory reset every never blocks]
+state norms (all puzzles): block 4: |W| 12.77 E_K per band 0.60/1.09/1.19/0.85 | block 16: |W| 49.22 E_K per band 0.58/0.80/1.66/2.27 | block 32: |W| 48.95 E_K per band 0.58/0.78/1.44/1.85 | block 64: |W| 51.84 E_K per band 0.58/0.78/1.40/1.65 | block 128: |W| 52.38 E_K per band 0.58/0.78/1.39/1.60
+
+ckpt runs/tf6_hard/bands/step_30000.pt step 30000; H_V(Y|none) = 1.792 nats (log 6 = 1.792); training depth 16 blocks
+groups: all 2048, solved@16 1409, rescued (unsolved@16, solved@end) 317, stuck (unsolved@16 and @end) 322
+== all (2048 puzzles): I_V(H_n -> Y) [95% CI] nats | model head: H(Y)-CE | exact
+   block    1: I_V +0.604 [+0.602, +0.607] | head +0.518 | exact 0.000
+   block    5: I_V +1.179 [+1.172, +1.185] | head +1.179 | exact 0.000
+   block    8: I_V +1.325 [+1.312, +1.337] | head +1.310 | exact 0.112
+   block   16: I_V +1.567 [+1.552, +1.584] | head +1.545 | exact 0.688
+   block   24: I_V +1.600 [+1.581, +1.624] | head +1.588 | exact 0.809
+   block   32: I_V +1.607 [+1.589, +1.624] | head +1.585 | exact 0.828
+   block   48: I_V +1.545 [+1.520, +1.564] | head +1.513 | exact 0.806
+   block   64: I_V +1.480 [+1.453, +1.506] | head +1.455 | exact 0.789
+   block   96: I_V +1.459 [+1.431, +1.488] | head +1.432 | exact 0.800
+   block  128: I_V +1.446 [+1.416, +1.471] | head +1.415 | exact 0.802
+   peak I_V at block 30: +1.609; at block 128: +1.446
+== solved@16 (1409 puzzles): I_V(H_n -> Y) [95% CI] nats | model head: H(Y)-CE | exact
+   block    1: I_V +0.606 [+0.604, +0.609] | head +0.521 | exact 0.000
+   block    5: I_V +1.236 [+1.229, +1.242] | head +1.220 | exact 0.000
+   block    8: I_V +1.461 [+1.453, +1.468] | head +1.411 | exact 0.163
+   block   16: I_V +1.766 [+1.764, +1.768] | head +1.721 | exact 1.000
+   block   24: I_V +1.777 [+1.777, +1.777] | head +1.752 | exact 1.000
+   block   32: I_V +1.777 [+1.776, +1.777] | head +1.750 | exact 1.000
+   block   48: I_V +1.752 [+1.750, +1.755] | head +1.734 | exact 0.965
+   block   64: I_V +1.708 [+1.699, +1.716] | head +1.708 | exact 0.937
+   block   96: I_V +1.688 [+1.678, +1.701] | head +1.697 | exact 0.939
+   block  128: I_V +1.681 [+1.669, +1.695] | head +1.694 | exact 0.941
+   peak I_V at block 28: +1.778; at block 128: +1.681
+== rescued (unsolved@16, solved@end) (317 puzzles): I_V(H_n -> Y) [95% CI] nats | model head: H(Y)-CE | exact
+   block    1: I_V +0.601 [+0.594, +0.607] | head +0.515 | exact 0.000
+   block    5: I_V +1.080 [+1.068, +1.094] | head +1.109 | exact 0.000
+   block    8: I_V +1.087 [+1.069, +1.107] | head +1.139 | exact 0.000
+   block   16: I_V +1.346 [+1.320, +1.374] | head +1.313 | exact 0.000
+   block   24: I_V +1.579 [+1.544, +1.616] | head +1.567 | exact 0.719
+   block   32: I_V +1.655 [+1.624, +1.681] | head +1.641 | exact 0.836
+   block   48: I_V +1.688 [+1.664, +1.710] | head +1.679 | exact 0.896
+   block   64: I_V +1.685 [+1.664, +1.705] | head +1.690 | exact 0.915
+   block   96: I_V +1.722 [+1.715, +1.729] | head +1.736 | exact 0.968
+   block  128: I_V +1.732 [+1.731, +1.733] | head +1.751 | exact 1.000
+   peak I_V at block 122: +1.733; at block 128: +1.732
+== stuck (unsolved@16 and @end) (322 puzzles): I_V(H_n -> Y) [95% CI] nats | model head: H(Y)-CE | exact
+   block    1: I_V +0.597 [+0.590, +0.603] | head +0.511 | exact 0.000
+   block    5: I_V +1.027 [+1.013, +1.044] | head +1.065 | exact 0.000
+   block    8: I_V +0.963 [+0.934, +0.986] | head +1.039 | exact 0.000
+   block   16: I_V +0.914 [+0.863, +0.958] | head +1.004 | exact 0.000
+   block   24: I_V +0.848 [+0.796, +0.905] | head +0.889 | exact 0.059
+   block   32: I_V +0.817 [+0.760, +0.871] | head +0.805 | exact 0.068
+   block   48: I_V +0.495 [+0.436, +0.567] | head +0.382 | exact 0.022
+   block   64: I_V +0.284 [+0.211, +0.347] | head +0.113 | exact 0.016
+   block   96: I_V +0.199 [+0.119, +0.268] | head -0.025 | exact 0.028
+   block  128: I_V +0.134 [+0.066, +0.218] | head -0.138 | exact 0.000
+   peak I_V at block 5: +1.027; at block 128: +0.134
+done in 23s

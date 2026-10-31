@@ -1,0 +1,17 @@
+ckpt step 200000, blocks 30, leaf at block 20; test pairs 278, eval-task pairs 88
+278 queries in 95s
+== all 278 test pairs: 278 pairs, base exact 121, query CE 0.579, demo LOO CE 0.007
+   cos(grad demo-LOO loss, grad query loss) over demo lanes: median +0.012, mean +0.034, frac>0 0.55; max |dL_demo/dZ| on the query lane 0.0e+00
+   demo_legit   0.01: dex +0 dCEq -0.000 dCEdemo -0.000 | 0.03: dex -1 dCEq -0.000 dCEdemo -0.000 | 0.1: dex -2 dCEq +0.002 dCEdemo -0.001 | 0.3: dex -1 dCEq +0.009 dCEdemo +0.004 | 1: dex +0 dCEq -0.019 dCEdemo +0.257
+   demo_oracle  0.01: dex +0 dCEq -0.013 dCEdemo -0.000 | 0.03: dex +2 dCEq -0.028 dCEdemo +0.000 | 0.1: dex +10 dCEq -0.077 dCEdemo +0.001 | 0.3: dex +13 dCEq -0.133 dCEdemo +0.022 | 1: dex -8 dCEq -0.153 dCEdemo +0.314
+   query_oracle 0.01: dex +3 dCEq -0.037 dCEdemo +0.000 | 0.03: dex +8 dCEq -0.077 dCEdemo +0.000 | 0.1: dex +25 dCEq -0.142 dCEdemo +0.000 | 0.3: dex +23 dCEq -0.188 dCEdemo +0.000 | 1: dex -46 dCEq -0.037 dCEdemo +0.000
+== 88 ARC-1 evaluation-task pairs: 88 pairs, base exact 39, query CE 0.539, demo LOO CE 0.009
+   cos(grad demo-LOO loss, grad query loss) over demo lanes: median +0.018, mean +0.036, frac>0 0.56; max |dL_demo/dZ| on the query lane 0.0e+00
+   demo_legit   0.01: dex +0 dCEq +0.000 dCEdemo -0.000 | 0.03: dex +0 dCEq -0.000 dCEdemo -0.000 | 0.1: dex +0 dCEq +0.003 dCEdemo -0.001 | 0.3: dex +0 dCEq +0.004 dCEdemo +0.004 | 1: dex +0 dCEq -0.033 dCEdemo +0.235
+   demo_oracle  0.01: dex +0 dCEq -0.014 dCEdemo +0.000 | 0.03: dex +0 dCEq -0.024 dCEdemo +0.000 | 0.1: dex +3 dCEq -0.066 dCEdemo +0.000 | 0.3: dex +4 dCEq -0.096 dCEdemo +0.013 | 1: dex -1 dCEq -0.126 dCEdemo +0.266
+   query_oracle 0.01: dex +1 dCEq -0.029 dCEdemo +0.000 | 0.03: dex +2 dCEq -0.064 dCEdemo +0.000 | 0.1: dex +5 dCEq -0.105 dCEdemo +0.000 | 0.3: dex +6 dCEq -0.137 dCEdemo +0.000 | 1: dex -14 dCEq -0.023 dCEdemo +0.000
+== 190 training-task pairs: 190 pairs, base exact 82, query CE 0.597, demo LOO CE 0.007
+   cos(grad demo-LOO loss, grad query loss) over demo lanes: median +0.009, mean +0.034, frac>0 0.55; max |dL_demo/dZ| on the query lane 0.0e+00
+   demo_legit   0.01: dex +0 dCEq -0.000 dCEdemo -0.000 | 0.03: dex -1 dCEq -0.000 dCEdemo -0.001 | 0.1: dex -2 dCEq +0.002 dCEdemo -0.001 | 0.3: dex -1 dCEq +0.011 dCEdemo +0.005 | 1: dex +0 dCEq -0.012 dCEdemo +0.267
+   demo_oracle  0.01: dex +0 dCEq -0.012 dCEdemo -0.000 | 0.03: dex +2 dCEq -0.029 dCEdemo +0.000 | 0.1: dex +7 dCEq -0.083 dCEdemo +0.001 | 0.3: dex +9 dCEq -0.150 dCEdemo +0.027 | 1: dex -7 dCEq -0.165 dCEdemo +0.336
+   query_oracle 0.01: dex +2 dCEq -0.040 dCEdemo +0.000 | 0.03: dex +6 dCEq -0.083 dCEdemo +0.000 | 0.1: dex +20 dCEq -0.159 dCEdemo +0.000 | 0.3: dex +17 dCEq -0.211 dCEdemo +0.000 | 1: dex -32 dCEq -0.043 dCEdemo +0.000

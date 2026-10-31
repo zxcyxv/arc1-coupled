@@ -182,6 +182,29 @@ class Concatenation(unittest.TestCase):
         torch.testing.assert_close(m, w_ref + (1 - eta) ** n.view(B, 1, 1, 1) * w0, rtol=1e-12, atol=1e-13)
         torch.testing.assert_close(c, lam * elig + (1 - lam) * s, rtol=1e-12, atol=1e-13)
 
+    def test_node_perturbation_trace(self):
+        """tf_elig_noise: the block's C update takes (xi / sigma^2)^T k~ with xi the noise on v, not S."""
+        sig = 0.3
+        m = LT(cfg(three_factor=True, tf_noise=sig, tf_elig_noise=True)).double().train()
+        perturb(m)
+        B, H, T, D = 3, m.H, m.n_pos, m.dh
+        g = torch.Generator().manual_seed(5)
+        r = lambda *s: torch.randn(*s, generator=g, dtype=torch.float64)
+        q, k, v, eps = r(B, H, T, D), r(B, H, T, D), r(B, H, T, D), r(B, H, T, D)
+        elig = r(B, H, D, D)
+        st = m.initial_state(B, 'cpu', torch.float64)
+        tf = (elig, torch.zeros(B, dtype=torch.float64), torch.ones(B, dtype=torch.float64), None, sig * eps)
+        with torch.no_grad():
+            _, _, (c, *_) = m.bands_step(q, k, v, st, tf)
+            xi = sig * eps * v.pow(2).mean(-1, keepdim=True).sqrt()
+            angles = m.rope_angles().double()
+            angles = angles[None] if angles.dim() == 3 else angles
+            unit = lambda x: x / (torch.linalg.vector_norm(x, dim=-1, keepdim=True) + m.config.eps)
+            kr = m.rope(unit(k), (angles.cos(), angles.sin()))
+            lam = m.block.tf_lam().view(1, H, 1, 1)
+        torch.testing.assert_close(c, lam * elig + (1 - lam) * (xi.transpose(-1, -2) @ kr) / sig ** 2,
+                                   rtol=1e-10, atol=1e-12)
+
 
 class GradientPaths(unittest.TestCase):
     def test_heads_and_main_path_are_separate(self):

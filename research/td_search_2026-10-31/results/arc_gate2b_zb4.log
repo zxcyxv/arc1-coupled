@@ -1,0 +1,23 @@
+ckpt step 47000, blocks 8, leaf at block 4; test pairs 241, eval-task pairs 83
+241 queries in 37s
+== all held-out tasks: 241 pairs, base exact 70, query CE 0.715, held-out demo LOO CE 0.686 (trained demos 0.064)
+   cos(grad held-demo loss, grad query loss) over the OTHER demo lanes: median +0.263, mean +0.217, frac>0 0.68; max |dL_demo/dZ| on the query lane 0.0e+00
+   demo_legit   0.01: dex +0 dCEq +0.002 dCEdemo -0.223 | 0.03: dex -1 dCEq +0.004 dCEdemo -0.269 | 0.1: dex -3 dCEq -0.001 dCEdemo +0.049 | 0.3: dex -10 dCEq -0.002 dCEdemo +1.120 | 1: dex -19 dCEq +0.031 dCEdemo +2.222
+   legit_others 0.01: dex -2 dCEq -0.004 dCEdemo -0.061 | 0.03: dex -5 dCEq -0.012 dCEdemo -0.136 | 0.1: dex -9 dCEq -0.016 dCEdemo -0.220 | 0.3: dex -21 dCEq +0.016 dCEdemo -0.177 | 1: dex -29 dCEq +0.061 dCEdemo +0.007
+   demo_oracle  0.01: dex +6 dCEq -0.080 dCEdemo +0.011 | 0.03: dex +15 dCEq -0.169 dCEdemo -0.006 | 0.1: dex +12 dCEq -0.239 dCEdemo +0.030 | 0.3: dex -3 dCEq -0.188 dCEdemo +0.448 | 1: dex -28 dCEq -0.036 dCEdemo +1.566
+   oracle_others 0.01: dex +6 dCEq -0.061 dCEdemo -0.005 | 0.03: dex +10 dCEq -0.139 dCEdemo -0.020 | 0.1: dex +14 dCEq -0.215 dCEdemo -0.022 | 0.3: dex +4 dCEq -0.213 dCEdemo +0.016 | 1: dex -7 dCEq -0.131 dCEdemo +0.091
+   query_oracle 0.01: dex +20 dCEq -0.159 dCEdemo +0.000 | 0.03: dex +24 dCEq -0.274 dCEdemo +0.000 | 0.1: dex -16 dCEq -0.237 dCEdemo +0.000 | 0.3: dex -63 dCEq +0.393 dCEdemo +0.000 | 1: dex -70 dCEq +1.738 dCEdemo +0.000
+== ARC-1 evaluation tasks: 83 pairs, base exact 29, query CE 0.568, held-out demo LOO CE 0.467 (trained demos 0.047)
+   cos(grad held-demo loss, grad query loss) over the OTHER demo lanes: median +0.305, mean +0.271, frac>0 0.76; max |dL_demo/dZ| on the query lane 0.0e+00
+   demo_legit   0.01: dex +0 dCEq -0.002 dCEdemo -0.138 | 0.03: dex +0 dCEq -0.002 dCEdemo -0.183 | 0.1: dex -1 dCEq +0.028 dCEdemo +0.210 | 0.3: dex -4 dCEq +0.027 dCEdemo +1.411 | 1: dex -6 dCEq +0.064 dCEdemo +2.613
+   legit_others 0.01: dex +0 dCEq +0.004 dCEdemo -0.028 | 0.03: dex +0 dCEq +0.010 dCEdemo -0.067 | 0.1: dex -1 dCEq -0.005 dCEdemo -0.113 | 0.3: dex -10 dCEq +0.020 dCEdemo -0.083 | 1: dex -15 dCEq +0.087 dCEdemo +0.133
+   demo_oracle  0.01: dex +1 dCEq -0.047 dCEdemo -0.001 | 0.03: dex +4 dCEq -0.128 dCEdemo -0.012 | 0.1: dex +6 dCEq -0.194 dCEdemo +0.038 | 0.3: dex -2 dCEq -0.126 dCEdemo +0.550 | 1: dex -19 dCEq +0.089 dCEdemo +1.857
+   oracle_others 0.01: dex +1 dCEq -0.037 dCEdemo -0.009 | 0.03: dex +4 dCEq -0.105 dCEdemo -0.004 | 0.1: dex +6 dCEq -0.168 dCEdemo +0.062 | 0.3: dex -1 dCEq -0.162 dCEdemo +0.090 | 1: dex -5 dCEq -0.053 dCEdemo +0.200
+   query_oracle 0.01: dex +6 dCEq -0.125 dCEdemo +0.000 | 0.03: dex +6 dCEq -0.222 dCEdemo +0.000 | 0.1: dex -13 dCEq -0.173 dCEdemo +0.000 | 0.3: dex -27 dCEq +0.487 dCEdemo +0.000 | 1: dex -29 dCEq +1.927 dCEdemo +0.000
+== training tasks: 158 pairs, base exact 41, query CE 0.792, held-out demo LOO CE 0.801 (trained demos 0.072)
+   cos(grad held-demo loss, grad query loss) over the OTHER demo lanes: median +0.236, mean +0.189, frac>0 0.65; max |dL_demo/dZ| on the query lane 0.0e+00
+   demo_legit   0.01: dex +0 dCEq +0.004 dCEdemo -0.268 | 0.03: dex -1 dCEq +0.007 dCEdemo -0.315 | 0.1: dex -2 dCEq -0.016 dCEdemo -0.036 | 0.3: dex -6 dCEq -0.017 dCEdemo +0.966 | 1: dex -13 dCEq +0.014 dCEdemo +2.016
+   legit_others 0.01: dex -2 dCEq -0.008 dCEdemo -0.078 | 0.03: dex -5 dCEq -0.023 dCEdemo -0.173 | 0.1: dex -8 dCEq -0.022 dCEdemo -0.276 | 0.3: dex -11 dCEq +0.013 dCEdemo -0.227 | 1: dex -14 dCEq +0.048 dCEdemo -0.059
+   demo_oracle  0.01: dex +5 dCEq -0.097 dCEdemo +0.017 | 0.03: dex +11 dCEq -0.190 dCEdemo -0.003 | 0.1: dex +6 dCEq -0.263 dCEdemo +0.026 | 0.3: dex -1 dCEq -0.221 dCEdemo +0.395 | 1: dex -9 dCEq -0.102 dCEdemo +1.413
+   oracle_others 0.01: dex +5 dCEq -0.073 dCEdemo -0.004 | 0.03: dex +6 dCEq -0.156 dCEdemo -0.028 | 0.1: dex +8 dCEq -0.240 dCEdemo -0.066 | 0.3: dex +5 dCEq -0.240 dCEdemo -0.023 | 1: dex -2 dCEq -0.172 dCEdemo +0.033
+   query_oracle 0.01: dex +14 dCEq -0.177 dCEdemo +0.000 | 0.03: dex +18 dCEq -0.302 dCEdemo +0.000 | 0.1: dex -3 dCEq -0.271 dCEdemo +0.000 | 0.3: dex -36 dCEq +0.344 dCEdemo +0.000 | 1: dex -41 dCEq +1.638 dCEdemo +0.000

@@ -1,0 +1,14 @@
+evaluator data: 4000 fresh puzzles x 4 boards; exact rate root 0.720, branches 0.338; true digit in top-3 0.995  (1s)
+  self.enc = nn.TransformerEncoder(layer, 2)
+   evaluator step 1000: loss 0.107, held-out AUC 0.981
+   evaluator step 2000: loss 0.009, held-out AUC 0.989
+   evaluator step 3000: loss 0.001, held-out AUC 0.988
+
+== test 2048 puzzles (compute 112 blocks per puzzle for the search)
+   plain recursion: block 16 1491 | block 112 (equal compute) 1709 | block 128 1706
+   search, pick by learned evaluator: 2005 | pick by lowest entropy: 1919 | label oracle over the 4 candidates (ceiling): 2030
+   evaluator AUC on test boards: 0.989; entropy AUC: 0.928
+   puzzles unsolved by the plain recursion at equal compute: 339; of those solved by the evaluator pick: 308, by entropy pick: 292, reachable (oracle): 326
+   plain-solved puzzles lost by the evaluator pick: 12, by entropy pick: 82
+   branching cell: true digit in top-3 0.995; branch with the true digit exact 0.996; branch with a wrong digit exact 0.014
+done in 10s

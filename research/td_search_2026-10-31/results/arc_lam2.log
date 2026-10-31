@@ -1,0 +1,67 @@
+ckpt step 47000, blocks 8, leaf at block 4; test pairs 241, eval-task pairs 83
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  lam0 = float(model.cfg.lam_floor + F.softplus(model.lam_raw))
+learned lambda 5.55e-03; scales (0.0, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0)
+241 queries in 34s
+== all held-out tasks: 241 pairs
+   [soft]
+     x0     query exact  68 CE 0.713 | held demo CE 0.689 | trained demos CE 0.071 | Theta nonzero 0.500, |Theta| 1.21x
+     x0.25  query exact  71 CE 0.712 | held demo CE 0.688 | trained demos CE 0.064 | Theta nonzero 0.399, |Theta| 1.15x
+     x0.5   query exact  69 CE 0.714 | held demo CE 0.686 | trained demos CE 0.063 | Theta nonzero 0.327, |Theta| 1.09x
+     x1     query exact  70 CE 0.715 | held demo CE 0.686 | trained demos CE 0.064 | Theta nonzero 0.240, |Theta| 1.00x
+     x2     query exact  52 CE 0.709 | held demo CE 0.695 | trained demos CE 0.095 | Theta nonzero 0.150, |Theta| 0.86x
+     x4     query exact  34 CE 0.801 | held demo CE 0.789 | trained demos CE 0.304 | Theta nonzero 0.074, |Theta| 0.67x
+     x8     query exact   4 CE 1.027 | held demo CE 1.031 | trained demos CE 0.720 | Theta nonzero 0.024, |Theta| 0.45x
+     x16    query exact   1 CE 1.133 | held demo CE 1.096 | trained demos CE 1.006 | Theta nonzero 0.006, |Theta| 0.20x
+     per task: default 70 | by held demo CE 65 | sparsest keeping held demo exact 60 | oracle 83
+   [soft_norm]
+     x0     query exact  68 CE 0.707 | held demo CE 0.682 | trained demos CE 0.066 | Theta nonzero 0.497, |Theta| 0.98x
+     x0.25  query exact  70 CE 0.709 | held demo CE 0.687 | trained demos CE 0.064 | Theta nonzero 0.396, |Theta| 0.99x
+     x0.5   query exact  67 CE 0.712 | held demo CE 0.686 | trained demos CE 0.064 | Theta nonzero 0.325, |Theta| 0.99x
+     x1     query exact  70 CE 0.715 | held demo CE 0.686 | trained demos CE 0.064 | Theta nonzero 0.240, |Theta| 1.00x
+     x2     query exact  58 CE 0.722 | held demo CE 0.701 | trained demos CE 0.088 | Theta nonzero 0.152, |Theta| 1.00x
+     x4     query exact  43 CE 0.800 | held demo CE 0.769 | trained demos CE 0.213 | Theta nonzero 0.075, |Theta| 0.99x
+     x8     query exact  15 CE 1.017 | held demo CE 1.000 | trained demos CE 0.577 | Theta nonzero 0.024, |Theta| 0.95x
+     x16    query exact   3 CE 1.352 | held demo CE 1.280 | trained demos CE 1.070 | Theta nonzero 0.005, |Theta| 0.86x
+     per task: default 70 | by held demo CE 66 | sparsest keeping held demo exact 57 | oracle 81
+   [hard_norm]
+     x0     query exact  70 CE 0.715 | held demo CE 0.686 | trained demos CE 0.064 | Theta nonzero 0.240, |Theta| 1.00x
+     x0.25  query exact  70 CE 0.715 | held demo CE 0.686 | trained demos CE 0.064 | Theta nonzero 0.240, |Theta| 1.00x
+     x0.5   query exact  70 CE 0.715 | held demo CE 0.686 | trained demos CE 0.064 | Theta nonzero 0.240, |Theta| 1.00x
+     x1     query exact  70 CE 0.715 | held demo CE 0.686 | trained demos CE 0.064 | Theta nonzero 0.240, |Theta| 1.00x
+     x2     query exact  69 CE 0.713 | held demo CE 0.688 | trained demos CE 0.065 | Theta nonzero 0.170, |Theta| 1.00x
+     x4     query exact  62 CE 0.724 | held demo CE 0.705 | trained demos CE 0.097 | Theta nonzero 0.097, |Theta| 1.00x
+     x8     query exact  34 CE 0.840 | held demo CE 0.806 | trained demos CE 0.294 | Theta nonzero 0.037, |Theta| 0.97x
+     x16    query exact   8 CE 1.187 | held demo CE 1.189 | trained demos CE 0.858 | Theta nonzero 0.009, |Theta| 0.87x
+     per task: default 70 | by held demo CE 64 | sparsest keeping held demo exact 60 | oracle 77
+== ARC-1 evaluation tasks: 83 pairs
+   [soft]
+     x0     query exact  25 CE 0.596 | held demo CE 0.497 | trained demos CE 0.049 | Theta nonzero 0.531, |Theta| 1.22x
+     x0.25  query exact  27 CE 0.592 | held demo CE 0.489 | trained demos CE 0.042 | Theta nonzero 0.418, |Theta| 1.15x
+     x0.5   query exact  27 CE 0.588 | held demo CE 0.480 | trained demos CE 0.042 | Theta nonzero 0.338, |Theta| 1.10x
+     x1     query exact  29 CE 0.568 | held demo CE 0.467 | trained demos CE 0.047 | Theta nonzero 0.246, |Theta| 1.00x
+     x2     query exact  20 CE 0.561 | held demo CE 0.444 | trained demos CE 0.072 | Theta nonzero 0.153, |Theta| 0.85x
+     x4     query exact  12 CE 0.647 | held demo CE 0.576 | trained demos CE 0.295 | Theta nonzero 0.075, |Theta| 0.66x
+     x8     query exact   1 CE 0.941 | held demo CE 0.927 | trained demos CE 0.761 | Theta nonzero 0.023, |Theta| 0.42x
+     x16    query exact   0 CE 1.125 | held demo CE 1.096 | trained demos CE 1.058 | Theta nonzero 0.005, |Theta| 0.18x
+     per task: default 29 | by held demo CE 27 | sparsest keeping held demo exact 21 | oracle 32
+   [soft_norm]
+     x0     query exact  26 CE 0.583 | held demo CE 0.475 | trained demos CE 0.045 | Theta nonzero 0.531, |Theta| 0.97x
+     x0.25  query exact  26 CE 0.585 | held demo CE 0.475 | trained demos CE 0.042 | Theta nonzero 0.413, |Theta| 0.99x
+     x0.5   query exact  25 CE 0.582 | held demo CE 0.474 | trained demos CE 0.042 | Theta nonzero 0.336, |Theta| 0.99x
+     x1     query exact  29 CE 0.568 | held demo CE 0.467 | trained demos CE 0.047 | Theta nonzero 0.246, |Theta| 1.00x
+     x2     query exact  24 CE 0.567 | held demo CE 0.454 | trained demos CE 0.067 | Theta nonzero 0.155, |Theta| 1.00x
+     x4     query exact  16 CE 0.668 | held demo CE 0.543 | trained demos CE 0.207 | Theta nonzero 0.076, |Theta| 0.99x
+     x8     query exact   5 CE 0.889 | held demo CE 0.854 | trained demos CE 0.607 | Theta nonzero 0.023, |Theta| 0.93x
+     x16    query exact   2 CE 1.297 | held demo CE 1.231 | trained demos CE 1.172 | Theta nonzero 0.005, |Theta| 0.82x
+     per task: default 29 | by held demo CE 26 | sparsest keeping held demo exact 23 | oracle 32
+   [hard_norm]
+     x0     query exact  29 CE 0.568 | held demo CE 0.467 | trained demos CE 0.047 | Theta nonzero 0.246, |Theta| 1.00x
+     x0.25  query exact  29 CE 0.568 | held demo CE 0.467 | trained demos CE 0.047 | Theta nonzero 0.246, |Theta| 1.00x
+     x0.5   query exact  29 CE 0.568 | held demo CE 0.467 | trained demos CE 0.047 | Theta nonzero 0.246, |Theta| 1.00x
+     x1     query exact  29 CE 0.568 | held demo CE 0.467 | trained demos CE 0.047 | Theta nonzero 0.246, |Theta| 1.00x
+     x2     query exact  29 CE 0.564 | held demo CE 0.465 | trained demos CE 0.048 | Theta nonzero 0.172, |Theta| 1.00x
+     x4     query exact  26 CE 0.561 | held demo CE 0.462 | trained demos CE 0.071 | Theta nonzero 0.097, |Theta| 1.00x
+     x8     query exact  12 CE 0.716 | held demo CE 0.602 | trained demos CE 0.302 | Theta nonzero 0.036, |Theta| 0.97x
+     x16    query exact   2 CE 1.073 | held demo CE 1.080 | trained demos CE 0.895 | Theta nonzero 0.008, |Theta| 0.83x
+     per task: default 29 | by held demo CE 27 | sparsest keeping held demo exact 24 | oracle 31
