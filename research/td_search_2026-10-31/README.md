@@ -4,6 +4,12 @@ GPU session record (RTX 5090). Branch `claude/clever-rubin-bw64wm`. Nothing here
 is single seed (project rule). The scripts in `scripts/` were run from the session scratchpad. Paths inside them point there;
 adjust before rerunning. The logs are in `results/`.
 
+> **Read `NEXT.md` first.** This file is the chronological record of 2026-10-31.
+> - Superseded: the "delta is circular" claims (sections 1 and 6) were based on a per-block test. Section 9 corrects
+>   them.
+> - The lowest-entropy / least-confident-cell choices in sections 4-5 are confidence heuristics that the user rejects
+>   as a method. They are kept here as a record only.
+
 ## Testbed
 - **6x6 Sudoku (2x3 boxes):**
   - Generator: `data/make_sudoku6.py`. `--hard` keeps only the puzzles that naked and hidden singles cannot finish.

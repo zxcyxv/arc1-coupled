@@ -1,48 +1,79 @@
-# Next steps (candidates, as of 2026-10-31, updated after README section 9)
+# Start here: state of the TD / three-factor work after 2026-10-31
 
-**Latest:**
-- On a trace of tau >= 8 the handoff delta does carry the outcome.
-- The scale-free fixed rule (`tf_np_rule1`) is active, but gives no gain over bands.
-- Per-block v noise has a low exploration ceiling: 1,853 at sigma 0.1; larger sigma breaks the solver.
-- The open question is the exploration: a persistent, localised perturbation (for example on one cell's input, held
-  for the rollout), so that the reward rule has better outcomes to reinforce. The decisions below predate this.
+Read this before `README.md` in this folder. The README is the full chronological record, and several of its
+earlier conclusions are superseded. This page lists what still holds.
 
-Nothing below is launched without the user's go. State the arm, the config, the time and the comparison first.
+## User rules for this work (non-negotiable)
+- **No confidence heuristics.** The user strongly dislikes them: they are only self-consistency, not a method. Never
+  use any of these as a method:
+  - the lowest-entropy pick;
+  - the least confident cell;
+  - majority vote.
+  Selection and branching must come from learned components trained on outcomes: a value trained by TD, or a policy
+  trained on search results.
+- **No hand-coded task rules at inference.** No Sudoku conflict checks or verifiers, also inside search.
+- **No runs without the user's go.** First state the arm, config, time and comparison. Do not re-run the bands baseline
+  (`runs/tf6_hard/bands` exists).
+- **Minimal change to the handoff design.** Flag every departure. Explain the architecture before any numbers.
+- **Settle a design with RL theory first.** Check the critic-error term, whether the path that is credited is the
+  path that was taken (on-policy), and how the trace bridges the reward delay. Run only what the theory leaves open.
+- **Explain your own reasoning directly.** Do not stall with literature searches. Single seed, decisive runs.
 
-## Decisions pending from the user
-1. **Which delta for the decisive run:**
-   - (a) the delayed reward of README section 7 (the user's proposal; recommended: no extra compute, a reward every
-     block);
-   - (b) the 8-block lookahead every 4 blocks (section 6).
-2. **Trace for (a):** an 8-slot buffer of past traces C_m (recommended; exact "block 1 rewarded at block 9"), or a longer
-   trace (tau ~ 8 or more; credit smeared over blocks 1-8).
-3. **beta scale:**
-   - Under Adam, beta moves by about lr = 1e-4 per step, so at most about 3 in 30k steps. The earlier diagnosis found
-     the term is only 0.6-1.6% of W even at beta = +2.
-   - Option: `tf_beta_scale=100` in every arm (a departure from the original, applied equally).
-4. **(b) only:** the delta of the other 3 blocks of each segment. Keep the handoff delta(V), which carries no signal,
-   or set it to 0.
+## What holds (6x6-hard, tiny bands model)
+1. **The handoff delta is not circular when it is accumulated on a trace.**
+   - Setup: delta_n = -(1-g)C^(h_{n-2}) + gV(h_{n-1}) - V(h_{n-2}), on a decaying trace with tau >= 8.
+   - It correlates 0.26-0.83 with the true advantage of the noise drawn in a block (L 16 blocks later).
+   - Block by block, the same delta correlates about 0. The "delta is circular" claim in README sections 1 and 6 came
+     from that per-block test and is wrong. (`scripts/gate_trace.py`)
+2. **Scale-free rule (`tf_unit_scale`):**
+   - delta / its batch RMS;
+   - eligibility (xi/sigma)^T k~;
+   - variance-preserving trace C = lam C + sqrt(1-lam^2) x.
+   With these, beta = 1 means a term the size of a write.
+3. **Trained, no gain over bands.**
 
-## Decisive run (step 3), once the decisions are made
-- **Arms:** the original tf (`three_factor=true`) vs the chosen variant, from scratch.
-  - Config `configs/tf/sudoku6_hard_tiny.json` + `tf_noise=0.1` (as `runs/tf6_hard/bands`), 30k steps, single seed.
-  - `runs/tf6_hard/bands` is the existing reference; do not re-run it.
-- **Metrics:** [EXTRAP] best exact, and exact at 16 blocks.
-- **Time (estimate):** about 5 min per arm for (a); about 1.7x that in training and 3x at inference for (b).
-- **Implementation:**
-  - A flag in `lt/model.py`; the carry needs the buffer of 8 traces and the last 9 (C^, V) board values.
-  - Unit test: the flag off is bitwise equal to the original.
-  - Tests in `tests/test_lt_three_factor.py`.
+   | arm | exact at 16 blocks (/2048) | [EXTRAP] best (/512) |
+   |---|---|---|
+   | bands | 1,401 | 421 |
+   | `tf_np_unit` (learned beta) | 1,388 | 416 |
+   | `tf_np_rule1` (fixed beta = 1, `tf_rule_only`) | 1,388 | 405 |
 
-## Optional measurements (read-only, seconds; ask first)
-- Gate for (a) under training noise: corr(delta_m(8), true advantage) with noise in every block (common across draws
-  except block m).
-- Effect of the rule on the frozen model: no training; set beta by hand and see whether exact at 16-64 blocks moves.
-  This is an eval-time knob and not decisive (memory `decisive-experiments`).
+   - A learned beta stays near 0: backprop sees 4-block segments, while the rule acts 8-16 blocks later. Use a fixed
+     rule.
+   - With beta = 1 the term is active, at 7-21% of the write. It still does not help.
+4. **Why it does not help: exploration.**
+   - Per-block v noise has a low ceiling. At sigma 0.1, the best of 16 runs (labels pick) is 1,853 of 2,048.
+   - sigma >= 0.3 breaks the solver.
+   - A reward rule can only reinforce what exploration reaches. (`scripts/noise_ceiling.py`)
+5. **Where the answers are: a persistent, localised change.**
+   - Fixing one cell's input to a candidate digit for the whole rollout reaches the answer: the labels-pick ceiling is
+     2,013.
+   - The working ingredient is that the change is persistent and local, not that it is a discrete token.
+   - The reported 2,010 "branch search" result used confidence heuristics to choose the cell and to pick the board. Do
+     not cite it as a method.
 
-## Other open threads from today
-- Rule-free branch search (README section 4) works as explicit selection: 1,686 -> 2,010 / 2,048. It is not part of
-  the TD design.
-- Overthinking fix: resetting the traces and W every 16 blocks takes exact from 0.80 to 0.85 at 128 blocks. Not
-  pursued.
-- Three-factor is out of the ARC paper (due 11-08), by user decision.
+## Superseded or rejected (do not resume)
+- **MCTS V^ in delta, without the root following the search:** off-policy, so it dilutes the signal (section 6).
+- **Consolidation (A = sum delta_k (W_k - mean)):**
+  - It replaced all three parts of the handoff rule, used entropy for delta, and added an extra memory and gain.
+  - The user rejected it. Its 1,968 relied on entropy-scored hypothesis branches.
+- **The 8-block lookahead and the 8-slot trace buffer:** unnecessary. The decaying trace with the 1-block delta already
+  gives the delayed credit (TD(lambda) backward view).
+- **The noise-branch consolidation runs:** stopped and deleted.
+
+## Candidate next steps (none approved yet)
+- **Structured exploration plus the fixed rule.** Perturb one cell's input, held for the rollout, and keep
+  `tf_np_rule1`'s rule (beta = 1, variance-preserving trace, the 1-block handoff delta). Where to perturb must come
+  from a learned policy or at random, never from confidence.
+- **TD + MCTS done properly (AlphaZero / TreeStrap).** The root follows the search. A policy proposes the cell and digit,
+  and is trained on search outcomes. The value V, trained by TD on true costs, evaluates. The open check: does V learn
+  more than confidence? In the gate its branch picks matched entropy, at 87-90%.
+
+## Files
+- **Runs:** `runs/tf6_hard/{bands, tf_np_unit, tf_np_rule1, heads}`. `runs/` is gitignored; the eval logs are copied to
+  `results/`.
+- **Code:**
+  - `lt/model.py` flags `three_factor`, `tf_elig_noise`, `tf_unit_scale`, `tf_rule_only`, `tf_beta_init`,
+    `tf_elig_tau`;
+  - tests `tests/test_lt_three_factor.py`;
+  - arms in `scripts/tf_runs.sh`.
