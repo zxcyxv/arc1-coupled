@@ -45,19 +45,41 @@
 Small recursive models trained from scratch are the strongest non-LLM approach to puzzle benchmarks such as
 Sudoku-Extreme and ARC-AGI. These models, HRM and TRM among them, re-apply a Transformer block many times. Seen as a
 modern Hopfield network, each step's attention is a Hebbian memory of the current state, so recursion reinforces the
-model's current answer, and accuracy falls once it runs past its training horizon. We propose TDP-Reasoner
+model's current answer. We propose TDP-Reasoner
 (timing-dependent plasticity reasoner), which keeps a fast-weight memory along the recursion itself: keys and values from
 different steps are paired under a learned two-sided timing window, borrowed from spike-timing-dependent plasticity, so
 the memory tracks how the state moves rather than where it is. Demonstrations of a task reach the query only through a
-per-task linear rule fitted in context, so unseen tasks need no retraining. Trained for 256 recursion blocks and run for
-10{,}000, it raises held-out Sudoku-Extreme accuracy from 59.8\% to 82.0\% and never loses a solved puzzle. On unseen
+per-task linear rule fitted in context, so unseen tasks need no retraining. Run 39 times deeper than it was trained, it
+removes 55\% of its remaining errors on held-out Sudoku-Extreme puzzles and never loses a solved puzzle. On
+unseen
 ARC-AGI-1 tasks with small grids it matches the public TRM checkpoint (43.2\% vs.\ 45.5\%) after about 3\% of its
 training; at full scale it reaches 18.8\% pass@2 on ARC-AGI-1 (TRM: 41.8\% under the same evaluation) and 0\% on
 ARC-AGI-2.
 \end{list}
 
 \section{Introduction}
-\todo{To be written.}
+
+Small recursive models such as HRM~\cite{wang2025hrm} and TRM~\cite{jolicoeur2025trm} apply one Transformer block many
+times. The recursion creates a time axis, but nothing crosses it except the state: every step rebuilds its attention
+from the current state alone. Seen as a modern Hopfield network~\cite{ramsauer2021}, that attention is a Hebbian memory
+of the current state, so each step reinforces the answer the model already holds. On ARC, extra recursion changes little:
+the public TRM checkpoint gains nothing when run past its training depth~\cite{royeazar2025}, and TRM models trained on
+ARC settle on wrong fixed points~\cite{viakhirev2026thinkshallow}.
+
+Synapses in the brain learn from the order of events as well as their coincidence: under spike-timing-dependent
+plasticity (STDP), the sign and size of a change depend on which neuron fired first and by how
+much~\cite{markram1997,bi1998}. We apply this rule along the recursion. A fast weight pairs keys and values from
+different steps under a learned two-sided timing window, so the memory records how the state moves, not only where it
+is. No spikes are needed, because the window uses only the order and lag of two events, which the step index provides.
+
+For ARC, TRM receives the demonstrations of a task through a puzzle embedding learned for that task, so an unseen task
+has to be trained on before it can be solved~\cite{royeazar2025,mcgovern2025}. TDP-Reasoner instead fits a sparse
+linear rule to the demonstrations in context and refines it at every step of the recursion.
+
+Our contributions are (i) timing-dependent plasticity along the recursion depth, whose memory equals the pair-based
+STDP integral exactly; (ii) an in-context rule head that keeps prior knowledge in slow features and the task in a fast
+sparse map; and (iii) results on Sudoku-Extreme extrapolation and on ARC-AGI-1 and ARC-AGI-2, where TDP-Reasoner
+scores 0\%.
 
 \section{Related work}
 \todo{To be written.}
@@ -128,5 +150,23 @@ demonstrations.
 
 \section{Limitations and future work}
 \todo{To be written.}
+
+
+\begin{thebibliography}{9}\small
+\bibitem{wang2025hrm} Wang et al. Hierarchical Reasoning Model. arXiv:2506.21734, 2025.
+\bibitem{jolicoeur2025trm} Jolicoeur-Martineau. Less is More: Recursive Reasoning with Tiny Networks. arXiv:2510.04871, 2025.
+\bibitem{ramsauer2021} Ramsauer et al. Hopfield Networks is All You Need. ICLR, 2021.
+\bibitem{li2026infiloop} Li et al. Scaling to Tens of Thousands of Test-Time Iterations with Loop-Native Attention
+  Residuals. arXiv:2610.11570, 2026.
+\bibitem{viakhirev2026thinkshallow} Viakhirev et al. Think Shallow, Solve Deep: Controlling Recurrent Dynamics for
+  Reliable Test-Time Depth. arXiv:2608.18222, 2026.
+\bibitem{markram1997} Markram, L\"ubke, Frotscher, Sakmann. Regulation of Synaptic Efficacy by Coincidence of
+  Postsynaptic APs and EPSPs. Science 275:213--215, 1997.
+\bibitem{bi1998} Bi, Poo. Synaptic Modifications in Cultured Hippocampal Neurons: Dependence on Spike Timing, Synaptic
+  Strength, and Postsynaptic Cell Type. J.\ Neurosci.\ 18:10464--10472, 1998.
+\bibitem{royeazar2025} Roye-Azar et al. Tiny Recursive Models on ARC-AGI-1: Inductive Biases, Identity Conditioning,
+  and Test-Time Compute. arXiv:2512.11847, 2025.
+\bibitem{mcgovern2025} McGovern. Test-time Adaptation of Tiny Recursive Models. arXiv:2511.02886, 2025.
+\end{thebibliography}
 
 \end{document}

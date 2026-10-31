@@ -34,12 +34,13 @@
 Small recursive models trained from scratch are the strongest non-LLM approach to puzzle benchmarks such as
 Sudoku-Extreme and ARC-AGI. These models, HRM and TRM among them, re-apply a Transformer block many times. Seen as a
 modern Hopfield network, each step's attention is a Hebbian memory of the current state, so recursion reinforces the
-model's current answer, and accuracy falls once it runs past its training horizon. We propose TDP-Reasoner
+model's current answer. We propose TDP-Reasoner
 (timing-dependent plasticity reasoner), which keeps a fast-weight memory along the recursion itself: keys and values from
 different steps are paired under a learned two-sided timing window, borrowed from spike-timing-dependent plasticity, so
 the memory tracks how the state moves rather than where it is. Demonstrations of a task reach the query only through a
-per-task linear rule fitted in context, so unseen tasks need no retraining. Trained for 256 recursion blocks and run for
-10{,}000, it raises held-out Sudoku-Extreme accuracy from 59.8\% to 82.0\% and never loses a solved puzzle. On unseen
+per-task linear rule fitted in context, so unseen tasks need no retraining. Run 39 times deeper than it was trained, it
+removes 55\% of its remaining errors on held-out Sudoku-Extreme puzzles and never loses a solved puzzle. On
+unseen
 ARC-AGI-1 tasks with small grids it matches the public TRM checkpoint (43.2\% vs.\ 45.5\%) after about 3\% of its
 training; at full scale it reaches 18.8\% pass@2 on ARC-AGI-1 (TRM: 41.8\% under the same evaluation) and 0\% on
 ARC-AGI-2.

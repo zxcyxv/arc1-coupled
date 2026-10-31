@@ -4,6 +4,7 @@
 - [No multiple seeds](no-multi-seed.md) — never replicate seeds; single decisive runs only
 - [Decisive experiments](decisive-experiments.md) — binary causal interventions trained from scratch; no eval-time ablations or graded knobs
 - [Paper thesis](paper-thesis.md) — agreed 10-28: STDP over recursion (main) + TEM factorization; dropped RoPE/holdout; gaps; model name TDP-Reasoner (10-30)
-- [State 2026-10-28](state-2026-10-28.md) — ARC-2 0%, <=10 depth result (30/10 rises, 8/4 plateaus), loops-1 extrapolation fails, next-instance experiments
+- [State 2026-10-30](state-2026-10-30.md) — ARC-2 submitted; Sudoku 42x16 retrain on Kaggle; paper draft (abstract, intro, method); TRM comparison by our own runs
+- [State 2026-10-28](state-2026-10-28.md) — (superseded by 10-30) ARC-2 0%, <=10 depth result (30/10 rises, 8/4 plateaus), loops-1 extrapolation fails, next-instance experiments
 - [State 2026-10-27](state-2026-10-27.md) — (superseded by 10-28) RoPE 1D finding, holdout, ARC-2 coupled 1D run
 - [No workflows](no-workflows.md) — don't launch Workflow runs unless asked, even with ultracode on
