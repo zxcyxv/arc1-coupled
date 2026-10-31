@@ -1,5 +1,5 @@
 {
-  "_comment": "Three-factor comparison on Sudoku-Extreme 1k (data/sudoku_lt_1k.npz), small model. The bands EMA model of configs/bands_bps16.json in zxcyxv/something (4 bands, periods 2/6/20/64, eta learned from 0.125 and capped, bands and eta without weight decay, 16 blocks per segment all backpropagated, 16 segments = 256 blocks per puzzle) at width 512 (8 heads of 64) instead of 832. The arms of scripts/tf_runs.sh add only their flags: bands (none), tf_zero (three_factor), tf_w0 (three_factor, w0_learned), w0 (w0_learned). A milestone every 5k steps runs 128 segments (8x the training depth) on 512 held-out puzzles.",
+  "_comment": "Three-factor comparison on Sudoku-Extreme 1k (data/sudoku_lt_1k.npz), small model. The bands EMA model of configs/bands_bps16.json in zxcyxv/something (4 bands, periods 2/6/20/64, eta learned from 0.125 and capped, bands and eta without weight decay, 16 blocks per segment all backpropagated, 16 segments = 256 blocks per puzzle) at width 512 (8 heads of 64) instead of 832. The arms of scripts/tf_runs.sh add only their flags: bands (none), tf_zero (three_factor), tf_w0 (three_factor, w0_learned), w0 (w0_learned). A milestone every 5k steps runs 128 segments (8x the training depth) on 512 held-out puzzles. Checkpoints hold no carry (AGENTS.md; with it one is about 0.5 GB): every 2,000 steps, a multiple of 16, when all lanes are being replaced; a resume after a mid-puzzle stop starts fresh lanes.",
   "hidden_size": 512,
   "num_heads": 8,
   "puzzle_emb_ndim": 512,
@@ -17,6 +17,8 @@
   "compile_scope": "block",
   "max_steps": 30000,
   "save_every_steps": 2000,
+  "save_carry": false,
+  "save_on_eval": false,
   "keep_last": 2,
   "milestone_every": 5000,
   "log_every": 250
