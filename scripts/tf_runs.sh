@@ -11,6 +11,10 @@
 #   tf_np = three_factor + node-perturbation eligibility (needs tf_noise > 0 in EXTRA, which every arm then shares);
 #   tf_np_s100 = tf_np with beta = 100 x its parameter (Adam moves it 100x faster), from 0; tf_np_b2 = the same from beta 2;
 #   tf_np_fix_p2 / _m2 = tf_np with the term detached (tf_rule_only), beta fixed at +2 / -2.
+#   tf_np_unit = tf_np with the scale-free third factor (tf_unit_scale: delta / its batch RMS, eligibility (xi/sigma)^T k~),
+#   trace tau 16 at the start, beta = 10 x its parameter (from 0).
+#   tf_np_rule1 = scale-free third factor as a fixed plasticity rule: beta = 1, not trained (tf_rule_only; the trace's
+#   lam is then not trained either, tau 16). (tf_np_unit ran before the trace became variance-preserving.)
 # Environment: CONFIG (configs/tf/base.json), EXTRA (more KEY=VALUE overrides for every arm), GPUS (e.g. "0 1 2"),
 #   VENV (/venv/main), RUNS (output root, runs/tf). Rerunning start on a stopped arm resumes it (same --out); a changed config is refused.
 set -euo pipefail
@@ -32,7 +36,9 @@ flags() {
     tf_np_b2)   echo "three_factor=true tf_elig_noise=true tf_beta_scale=100 tf_beta_init=2" ;;
     tf_np_fix_p2) echo "three_factor=true tf_elig_noise=true tf_beta_init=2 tf_rule_only=true" ;;
     tf_np_fix_m2) echo "three_factor=true tf_elig_noise=true tf_beta_init=-2 tf_rule_only=true" ;;
-    *) echo "unknown arm $1 (bands, tf_zero, tf_w0, w0, tf_np, tf_np_s100, tf_np_b2, tf_np_fix_p2, tf_np_fix_m2)" >&2; return 1 ;;
+    tf_np_unit) echo "three_factor=true tf_elig_noise=true tf_unit_scale=true tf_elig_tau=16 tf_beta_scale=10" ;;
+    tf_np_rule1) echo "three_factor=true tf_elig_noise=true tf_unit_scale=true tf_elig_tau=16 tf_beta_init=1 tf_rule_only=true" ;;
+    *) echo "unknown arm $1 (bands, tf_zero, tf_w0, w0, tf_np, tf_np_s100, tf_np_b2, tf_np_fix_p2, tf_np_fix_m2, tf_np_unit, tf_np_rule1)" >&2; return 1 ;;
   esac
 }
 

@@ -205,6 +205,41 @@ class Concatenation(unittest.TestCase):
         torch.testing.assert_close(c, lam * elig + (1 - lam) * (xi.transpose(-1, -2) @ kr) / sig ** 2,
                                    rtol=1e-10, atol=1e-12)
 
+    def test_unit_scale(self):
+        """tf_unit_scale: the noise eligibility is (xi / sigma)^T k~ into a variance-preserving trace, and every non-first block's delta has RMS 1 over
+        the batch."""
+        sig = 0.3
+        m = LT(cfg(three_factor=True, tf_noise=sig, tf_elig_noise=True, tf_unit_scale=True)).double().train()
+        perturb(m)
+        B, H, T, D = 3, m.H, m.n_pos, m.dh
+        g = torch.Generator().manual_seed(5)
+        r = lambda *s: torch.randn(*s, generator=g, dtype=torch.float64)
+        q, k, v, eps = r(B, H, T, D), r(B, H, T, D), r(B, H, T, D), r(B, H, T, D)
+        elig = r(B, H, D, D)
+        st = m.initial_state(B, 'cpu', torch.float64)
+        tf = (elig, torch.zeros(B, dtype=torch.float64), torch.ones(B, dtype=torch.float64), None, sig * eps)
+        with torch.no_grad():
+            _, _, (c, *_) = m.bands_step(q, k, v, st, tf)
+            xi = sig * eps * v.pow(2).mean(-1, keepdim=True).sqrt()
+            angles = m.rope_angles().double()
+            angles = angles[None] if angles.dim() == 3 else angles
+            unit = lambda x: x / (torch.linalg.vector_norm(x, dim=-1, keepdim=True) + m.config.eps)
+            kr = m.rope(unit(k), (angles.cos(), angles.sin()))
+            lam = m.block.tf_lam().view(1, H, 1, 1)
+        torch.testing.assert_close(c, lam * elig + torch.sqrt(1 - lam ** 2) * (xi.transpose(-1, -2) @ kr) / sig,
+                                   rtol=1e-10, atol=1e-12)
+        seen, orig = [], m.tf_input
+        def spy(tf, h, i, store):
+            out = orig(tf, h, i, store)
+            seen.append(out[1])
+            return out
+        m.tf_input = spy
+        x = batch(0)
+        with torch.no_grad():
+            m(m.initial_carry(x), x)
+        ds = torch.stack(seen[1:])                       # block 1 of a fresh puzzle has delta 0
+        torch.testing.assert_close(ds.pow(2).mean(-1).sqrt(), torch.ones(len(ds), dtype=ds.dtype), rtol=1e-9, atol=1e-9)
+
 
 class GradientPaths(unittest.TestCase):
     def test_heads_and_main_path_are_separate(self):

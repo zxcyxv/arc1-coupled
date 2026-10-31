@@ -1,4 +1,12 @@
-# Next steps (candidates, as of 2026-10-31)
+# Next steps (candidates, as of 2026-10-31, updated after README section 9)
+
+**Latest:**
+- On a trace of tau >= 8 the handoff delta does carry the outcome.
+- The scale-free fixed rule (`tf_np_rule1`) is active, but gives no gain over bands.
+- Per-block v noise has a low exploration ceiling: 1,853 at sigma 0.1; larger sigma breaks the solver.
+- The open question is the exploration: a persistent, localised perturbation (for example on one cell's input, held
+  for the rollout), so that the reward rule has better outcomes to reinforce. The decisions below predate this.
+
 Nothing below is launched without the user's go. State the arm, the config, the time and the comparison first.
 
 ## Decisions pending from the user

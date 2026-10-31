@@ -201,6 +201,11 @@ class ModelConfig:
     tf_elig_noise: bool = False       # node perturbation: the eligibility trace takes the injected noise instead of the
                                       # whole write, C_n = lam C_{n-1} + (1 - lam) (xi / sigma^2)^T k~ with xi the noise
                                       # added to v (sigma = tf_noise); needs three_factor and tf_noise > 0
+    tf_unit_scale: bool = False       # three_factor: scale-free third factor. delta is divided by its RMS over the batch's
+                                      # lanes (detached; the critic's (1 - g) scale and drift drop out), and the node-
+                                      # perturbation eligibility uses (xi / sigma)^T k~ (the size of a write) instead of
+                                      # (xi / sigma^2)^T k~, and the trace is variance-preserving, C = lam C +
+                                      # sqrt(1 - lam^2) x: with beta = 1 the term is the size of a write (no constant)
     w0_learned: bool = False          # bands EMA: W starts each puzzle at a learned matrix W0 (an embedding of H D^2 per
                                       # puzzle identifier, reshaped to [H, D, D]; zero at the start) instead of 0. Computed
                                       # as W_n = W~_n + (1 - eta)^n W0 (n blocks since the puzzle start, W~_0 = 0; the
@@ -301,6 +306,8 @@ class ModelConfig:
             raise ValueError('0 < tf_gamma < 1, tf_elig_tau > 1, tf_head_dim > 0, tf_noise >= 0, ce stablemax | softmax')
         if self.tf_beta_scale <= 0:
             raise ValueError('tf_beta_scale must be > 0')
+        if self.tf_unit_scale and not self.three_factor:
+            raise ValueError('tf_unit_scale needs three_factor')
         if self.tf_elig_noise and not (self.three_factor and self.tf_noise > 0):
             raise ValueError('tf_elig_noise needs three_factor and tf_noise > 0')
 
@@ -945,7 +952,7 @@ class LT(nn.Module):
             if tf is not None:
                 e = None
                 if cfg.tf_elig_noise and xi is not None:     # node perturbation: (xi / sigma^2)^T k~
-                    e = mm(xi.transpose(-1, -2), kr) / cfg.tf_noise ** 2
+                    e = mm(xi.transpose(-1, -2), kr) / (cfg.tf_noise if cfg.tf_unit_scale else cfg.tf_noise ** 2)
                 w, m, tf = self.tf_write(w, s, tf, dtype, e)
             read = mm(qr, ((mm(v.transpose(-1, -2), kr) if cfg.hebb else s) + m).transpose(-1, -2))
             ev_re = dv_re + gamma * v.unsqueeze(3)
@@ -976,9 +983,13 @@ class LT(nn.Module):
             w = w + ((gain * elig).detach() if cfg.tf_rule_only else gain * elig)
             lam = L.tf_lam().to(dtype)[None, :, None, None]
             if cfg.tf_elig_noise:
-                elig = lam * elig + ((1 - lam) * e if e is not None else 0)
+                inp = e
             else:
-                elig = lam * elig + (1 - lam) * s
+                inp = s
+            # tf_unit_scale: variance-preserving trace, C = lam C + sqrt(1 - lam^2) x: for inputs uncorrelated across
+            # blocks C keeps their size whatever lam, so beta = 1 means a third-factor write the size of a write
+            mix = torch.sqrt(1 - lam ** 2) if cfg.tf_unit_scale else (1 - lam)
+            elig = lam * elig + (mix * inp if inp is not None else 0)
         m = w
         if w0 is not None:
             keep = torch.log1p(-eta) if torch.is_tensor(eta) else math.log1p(-eta)
@@ -1285,6 +1296,10 @@ class LT(nn.Module):
                 c, v = (c * tf['wt']).sum(-1), (v * tf['wt']).sum(-1)
                 pc, pv = tf['prev'].unbind(-1)
                 delta = torch.where(tf['has'], -(1 - g) * pc + g * v - pv, torch.zeros_like(v))
+                if cfg.tf_unit_scale:
+                    live = tf['has'].to(delta.dtype)
+                    rms = ((delta ** 2 * live).sum() / live.sum().clamp_min(1)).sqrt()
+                    delta = delta / (rms + 1e-12)
             tf['prev'], tf['has'] = torch.stack((c, v), -1), torch.ones_like(tf['has'])
             tf['deltas'].append(delta)
             if store:

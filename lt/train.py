@@ -53,7 +53,7 @@ DEFAULTS = dict(
     local_conv=False, frame_rope=False, ctx_packed=False, grad_blocks=0, rule_path=False,
     rule_prior_emb=0, rule_prior_dropout=0.5, rule_write_bias=-2.0, rule_theta_init=1e-3, rule_prior_pe=False, ctx_versions=False,
     three_factor=False, tf_gamma=0.96875, tf_elig_tau=4.0, tf_elig_learn=True, tf_head_dim=128, tf_head_weight=1.0,
-    tf_noise=0.0, tf_noise_eval=False, tf_elig_noise=False, tf_beta_scale=1.0, tf_beta_init=0.0, tf_rule_only=False, w0_learned=False,
+    tf_noise=0.0, tf_noise_eval=False, tf_elig_noise=False, tf_unit_scale=False, tf_beta_scale=1.0, tf_beta_init=0.0, tf_rule_only=False, w0_learned=False,
     w0_decay=False,                   # weight decay on the W0 table (default none: an initial state, like init_hidden)
     # data
     data_npz=None, test_size=2048, num_aug=1000,
@@ -83,7 +83,7 @@ RECIPE_KEYS = ('hidden_size', 'num_heads', 'blocks_per_seg', 'loops', 'mlp_expan
                'rope', 'rope_base',
                'fast_ffn', 'fast_ffn_eta', 'fast_ffn_decay', 'local_conv', 'frame_rope', 'ctx_packed', 'grad_blocks', 'rule_path', 'rule_prior_emb', 'rule_prior_dropout', 'rule_write_bias', 'rule_theta_init', 'rule_prior_pe', 'ctx_versions', 'init_from', 'init_weights',
                'three_factor', 'tf_gamma', 'tf_elig_tau', 'tf_elig_learn', 'tf_head_dim', 'tf_head_weight', 'tf_noise',
-               'tf_noise_eval', 'tf_elig_noise', 'tf_beta_scale', 'tf_beta_init', 'tf_rule_only', 'w0_learned', 'w0_decay',
+               'tf_noise_eval', 'tf_elig_noise', 'tf_unit_scale', 'tf_beta_scale', 'tf_beta_init', 'tf_rule_only', 'w0_learned', 'w0_decay',
                'num_aug', 'test_size', 'ce', 'decay_all',
                'global_batch_size', 'epochs', 'eval_interval', 'lr', 'lr_warmup_steps', 'lr_warmup_start', 'weight_decay', 'beta1',
                'beta2', 'puzzle_emb_lr', 'puzzle_emb_weight_decay', 'ema_rate', 'ema_puzzle_emb', 'seed',

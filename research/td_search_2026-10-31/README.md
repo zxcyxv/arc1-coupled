@@ -209,3 +209,55 @@ Each item below could have been settled on paper from standard TD theory before 
 
 What was not wasted: the circularity diagnosis, the gate method (delta vs true advantage over noise draws), the
 V-information analysis, and the rule-free branch-search result (1,686 -> 2,010).
+
+## 9. Correction: the handoff delta is not circular on the trace; trained runs; the noise ceiling
+**The per-block test was the wrong test** (`scripts/gate_trace.py`).
+- Setup: frozen model + heads; noise drawn only in block b; the credit is what the decaying trace of that noise collects
+  from the handoff's 1-block delta over the next 16 blocks, sum_j lam^(j-1) delta_{b+j} (the TD(lambda) backward view).
+- Median corr with the true advantage (L 16 blocks later), at b = 4 / 8 / 12:
+
+| trace | b = 4 | b = 8 | b = 12 |
+|---|---|---|---|
+| tau 1 (the per-block test of section 1) | -0.05 | -0.05 | -0.01 |
+| tau 4 | +0.56 | +0.23 | +0.12 |
+| tau 8 | +0.77 | +0.41 | +0.26 |
+| tau 16 | +0.82 | +0.47 | +0.35 |
+| tau 32 | +0.83 | +0.50 | +0.47 |
+
+- Against L 32 blocks later, every variant is about 0.1: one block's noise effect has mostly washed out by then.
+- So the morning's "delta is circular" (section 1) judged delta block by block. On a trace of tau >= 8, the same delta
+  carries the outcome.
+
+**Trained runs** (from scratch; `configs/tf/sudoku6_hard_tiny.json` + noise 0.1, eval noise on; 30k steps; same as
+`runs/tf6_hard/bands`):
+- `tf_np_unit`: node-perturbation trace, `tf_unit_scale`, tau 16 learned, beta = 10 x a parameter learned from 0.
+  - beta ends at only [0.10, 0.09, 0.12, 0.32], all positive.
+  - Backprop sees 4-block segments, while the rule's effect comes 8-16 blocks later, so a learned beta stays near 0.
+- `tf_np_rule1`: the same as a fixed plasticity rule (`tf_rule_only`, beta = 1, tau 16).
+  - `tf_unit_scale` now also makes the trace variance-preserving, C = lam C + sqrt(1 - lam^2) x, so that beta = 1
+    means a term the size of a write, with no hand-picked constant.
+  - Measured on the trained model, the term is 0.07-0.21 of the block's write eta S (blocks 2-32), so it is active.
+
+| | bands | tf_np_unit | tf_np_rule1 |
+|---|---|---|---|
+| exact at 16 blocks (/2048) | 1,401 | 1,388 | 1,388 |
+| [EXTRAP] best (/512) | 421 | 416 | 405 |
+| [EXTRAP] at 16 blocks (/512) | 349 | 350 | 359 |
+
+- No gain: the active rule does not help.
+
+**Exploration ceiling of the v noise** (`scripts/noise_ceiling.py`, frozen 30k model, 64 blocks, 2,048 puzzles):
+
+| sigma | one run | any of 4 runs (labels pick) | any of 16 runs | entropy pick of 16 |
+|---|---|---|---|---|
+| 0 (plain) | 1,671 | | | |
+| 0.1 | 1,601 | 1,774 | 1,853 | 1,744 |
+| 0.3 | 401 | 814 | 1,210 | 1,103 |
+| 1.0 / 3.0 | 0 | 0 | 0 | 0 |
+
+- Larger noise in v at every block destroys the solver.
+- At sigma 0.1 the ceiling is 1,853, against 2,013 for the branch search.
+- The earlier restart control figure (1,611) used a compute-matched protocol (shorter runs), not 4 full runs. With 4
+  full 64-block runs, any-of-4 is 1,774.
+- Conclusion: per-block v noise cannot reach the hypotheses that the branch search reaches. Exploration must be
+  structured (persistent and localised, like a changed input cell) to give a reward rule something to reinforce.

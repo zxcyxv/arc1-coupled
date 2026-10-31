@@ -1,0 +1,84 @@
+[EVAL] step 781 acc 0.3226 exact 0/2048
+[TF] step 781 (ema) beta [+0.0084 +0.0049 +0.0062 +0.0098] lam [+0.9375 +0.9375 +0.9375 +0.9375]; last segment delta -9.02e-01 |delta| 9.09e-01 C^ 0.7105 CE 1.8218
+[EVAL] step 1562 acc 0.4885 exact 0/2048
+[TF] step 1562 (ema) beta [+0.0477 +0.0321 +0.0253 +0.0490] lam [+0.9371 +0.9372 +0.9372 +0.9371]; last segment delta -9.94e-01 |delta| 9.94e-01 C^ 0.9170 CE 1.3761
+[EVAL] step 2343 acc 0.5294 exact 0/2048
+[TF] step 2343 (ema) beta [+0.1055 +0.0626 +0.0657 +0.0868] lam [+0.9362 +0.9366 +0.9367 +0.9369]; last segment delta -9.89e-01 |delta| 9.89e-01 C^ 1.0762 CE 1.1658
+[EVAL] step 3124 acc 0.5691 exact 0/2048
+[TF] step 3124 (ema) beta [+0.1246 +0.0602 +0.0816 +0.0978] lam [+0.9359 +0.9365 +0.9363 +0.9370]; last segment delta -8.66e-01 |delta| 8.85e-01 C^ 1.0744 CE 1.0314
+[EVAL] step 3905 acc 0.6142 exact 0/2048
+[TF] step 3905 (ema) beta [+0.1693 +0.0581 +0.1092 +0.1225] lam [+0.9355 +0.9366 +0.9361 +0.9372]; last segment delta -7.17e-01 |delta| 8.34e-01 C^ 0.9818 CE 0.9188
+[EVAL] step 4686 acc 0.6603 exact 0/2048
+[TF] step 4686 (ema) beta [+0.2002 +0.0700 +0.1144 +0.1465] lam [+0.9350 +0.9367 +0.9360 +0.9374]; last segment delta -4.51e-01 |delta| 8.02e-01 C^ 0.8689 CE 0.8133
+[EXTRAP] step 5000: seg4 0/512 -> best 20 (seg 32), error reduction 3.9%
+[EVAL] step 5467 acc 0.7017 exact 1/2048
+[TF] step 5467 (ema) beta [+0.2022 +0.0739 +0.1026 +0.1348] lam [+0.9346 +0.9368 +0.9359 +0.9375]; last segment delta -1.37e-01 |delta| 7.98e-01 C^ 0.7676 CE 0.7234
+[EVAL] step 6248 acc 0.7299 exact 8/2048
+[TF] step 6248 (ema) beta [+0.1547 +0.0462 +0.0937 +0.1065] lam [+0.9345 +0.9371 +0.9359 +0.9376]; last segment delta +7.50e-02 |delta| 7.99e-01 C^ 0.6843 CE 0.6570
+[EVAL] step 7029 acc 0.7491 exact 22/2048
+[TF] step 7029 (ema) beta [+0.1148 +0.0246 +0.0905 +0.0751] lam [+0.9345 +0.9373 +0.9358 +0.9378]; last segment delta +6.44e-02 |delta| 7.96e-01 C^ 0.6214 CE 0.6079
+[EVAL] step 7810 acc 0.7647 exact 60/2048
+[TF] step 7810 (ema) beta [+0.0879 +0.0033 +0.0744 +0.0610] lam [+0.9345 +0.9374 +0.9358 +0.9378]; last segment delta +6.97e-02 |delta| 7.97e-01 C^ 0.5534 CE 0.5701
+[EVAL] step 8591 acc 0.7762 exact 102/2048
+[TF] step 8591 (ema) beta [+0.0785 -0.0013 +0.0626 +0.0664] lam [+0.9345 +0.9374 +0.9359 +0.9377]; last segment delta +4.56e-02 |delta| 7.95e-01 C^ 0.5060 CE 0.5411
+[EVAL] step 9372 acc 0.7880 exact 150/2048
+[TF] step 9372 (ema) beta [+0.0751 -0.0021 +0.0428 +0.0750] lam [+0.9345 +0.9375 +0.9360 +0.9376]; last segment delta -2.09e-02 |delta| 7.96e-01 C^ 0.5033 CE 0.5098
+[EXTRAP] step 10000: seg4 48/512 -> best 222 (seg 25), error reduction 37.5%
+[EVAL] step 10153 acc 0.7997 exact 214/2048
+[TF] step 10153 (ema) beta [+0.0622 -0.0099 +0.0267 +0.0871] lam [+0.9346 +0.9373 +0.9362 +0.9377]; last segment delta -1.86e-03 |delta| 7.92e-01 C^ 0.4699 CE 0.4888
+[EVAL] step 10934 acc 0.8104 exact 284/2048
+[TF] step 10934 (ema) beta [+0.0508 -0.0189 +0.0193 +0.0661] lam [+0.9349 +0.9372 +0.9364 +0.9379]; last segment delta +1.03e-01 |delta| 7.81e-01 C^ 0.4365 CE 0.4735
+[EVAL] step 11715 acc 0.8193 exact 365/2048
+[TF] step 11715 (ema) beta [+0.0432 -0.0221 +0.0204 +0.0366] lam [+0.9354 +0.9370 +0.9366 +0.9382]; last segment delta +1.98e-01 |delta| 7.69e-01 C^ 0.4334 CE 0.4515
+[EVAL] step 12496 acc 0.8355 exact 494/2048
+[TF] step 12496 (ema) beta [+0.0348 +0.0115 +0.0081 +0.0361] lam [+0.9358 +0.9371 +0.9367 +0.9385]; last segment delta +2.07e-01 |delta| 7.61e-01 C^ 0.4111 CE 0.4292
+[EVAL] step 13277 acc 0.8422 exact 558/2048
+[TF] step 13277 (ema) beta [+0.0227 +0.0372 -0.0038 +0.0485] lam [+0.9365 +0.9373 +0.9367 +0.9385]; last segment delta +1.25e-01 |delta| 7.69e-01 C^ 0.4096 CE 0.4117
+[EVAL] step 14058 acc 0.8489 exact 659/2048
+[TF] step 14058 (ema) beta [+0.0048 +0.0439 +0.0043 +0.0606] lam [+0.9368 +0.9374 +0.9367 +0.9386]; last segment delta +1.42e-01 |delta| 7.71e-01 C^ 0.3767 CE 0.3937
+[EVAL] step 14839 acc 0.8626 exact 794/2048
+[TF] step 14839 (ema) beta [+0.0143 +0.0501 +0.0144 +0.0746] lam [+0.9370 +0.9376 +0.9369 +0.9387]; last segment delta +1.75e-01 |delta| 7.80e-01 C^ 0.3635 CE 0.3675
+[EXTRAP] step 15000: seg4 205/512 -> best 342 (seg 26), error reduction 44.6%
+[EVAL] step 15620 acc 0.8737 exact 883/2048
+[TF] step 15620 (ema) beta [+0.0045 +0.0513 +0.0238 +0.0903] lam [+0.9374 +0.9378 +0.9371 +0.9388]; last segment delta +1.25e-01 |delta| 8.00e-01 C^ 0.3530 CE 0.3422
+[EVAL] step 16401 acc 0.8876 exact 963/2048
+[TF] step 16401 (ema) beta [-0.0053 +0.0519 +0.0166 +0.0984] lam [+0.9372 +0.9380 +0.9372 +0.9389]; last segment delta +7.17e-02 |delta| 8.18e-01 C^ 0.3525 CE 0.3150
+[EVAL] step 17182 acc 0.8982 exact 1044/2048
+[TF] step 17182 (ema) beta [-0.0069 +0.0653 +0.0093 +0.1276] lam [+0.9366 +0.9383 +0.9373 +0.9388]; last segment delta -6.52e-03 |delta| 8.34e-01 C^ 0.3634 CE 0.2934
+[EVAL] step 17963 acc 0.9060 exact 1108/2048
+[TF] step 17963 (ema) beta [-0.0026 +0.0670 +0.0057 +0.1358] lam [+0.9364 +0.9385 +0.9373 +0.9386]; last segment delta -8.56e-02 |delta| 8.58e-01 C^ 0.3616 CE 0.2768
+[EVAL] step 18744 acc 0.9108 exact 1167/2048
+[TF] step 18744 (ema) beta [-0.0028 +0.0594 +0.0162 +0.1304] lam [+0.9363 +0.9388 +0.9374 +0.9385]; last segment delta -5.73e-02 |delta| 8.56e-01 C^ 0.3429 CE 0.2663
+[EVAL] step 19525 acc 0.9157 exact 1228/2048
+[TF] step 19525 (ema) beta [-0.0026 +0.0521 +0.0292 +0.1334] lam [+0.9361 +0.9390 +0.9375 +0.9385]; last segment delta +1.06e-02 |delta| 8.54e-01 C^ 0.3252 CE 0.2504
+[EXTRAP] step 20000: seg4 313/512 -> best 405 (seg 26), error reduction 46.2%
+[EVAL] step 20306 acc 0.9173 exact 1222/2048
+[TF] step 20306 (ema) beta [+0.0098 +0.0440 +0.0371 +0.1351] lam [+0.9362 +0.9391 +0.9375 +0.9386]; last segment delta -8.83e-02 |delta| 8.51e-01 C^ 0.3304 CE 0.2459
+[EVAL] step 21087 acc 0.9225 exact 1267/2048
+[TF] step 21087 (ema) beta [+0.0093 +0.0449 +0.0513 +0.1475] lam [+0.9368 +0.9394 +0.9377 +0.9386]; last segment delta +3.85e-02 |delta| 8.41e-01 C^ 0.2972 CE 0.2332
+[EVAL] step 21868 acc 0.9238 exact 1295/2048
+[TF] step 21868 (ema) beta [+0.0085 +0.0442 +0.0544 +0.1737] lam [+0.9372 +0.9399 +0.9379 +0.9385]; last segment delta +2.71e-02 |delta| 8.41e-01 C^ 0.2913 CE 0.2290
+[EVAL] step 22649 acc 0.9277 exact 1324/2048
+[TF] step 22649 (ema) beta [+0.0198 +0.0447 +0.0569 +0.2010] lam [+0.9379 +0.9404 +0.9382 +0.9385]; last segment delta +2.95e-02 |delta| 8.35e-01 C^ 0.2896 CE 0.2209
+[EVAL] step 23430 acc 0.9249 exact 1297/2048
+[TF] step 23430 (ema) beta [+0.0145 +0.0534 +0.0356 +0.2111] lam [+0.9386 +0.9408 +0.9386 +0.9385]; last segment delta -6.88e-03 |delta| 8.33e-01 C^ 0.2896 CE 0.2244
+[EVAL] step 24211 acc 0.9260 exact 1326/2048
+[TF] step 24211 (ema) beta [+0.0016 +0.0706 +0.0331 +0.2363] lam [+0.9389 +0.9412 +0.9388 +0.9386]; last segment delta +5.01e-02 |delta| 8.25e-01 C^ 0.2779 CE 0.2212
+[EVAL] step 24992 acc 0.9272 exact 1289/2048
+[TF] step 24992 (ema) beta [+0.0087 +0.1028 +0.0289 +0.2543] lam [+0.9391 +0.9415 +0.9391 +0.9386]; last segment delta -3.93e-02 |delta| 8.26e-01 C^ 0.3049 CE 0.2198
+[EXTRAP] step 25000: seg4 324/512 -> best 393 (seg 9), error reduction 36.7%
+[EVAL] step 25773 acc 0.9307 exact 1368/2048
+[TF] step 25773 (ema) beta [+0.0194 +0.1169 +0.0616 +0.2689] lam [+0.9397 +0.9417 +0.9394 +0.9386]; last segment delta +9.17e-02 |delta| 8.12e-01 C^ 0.2588 CE 0.2097
+[EVAL] step 26554 acc 0.9329 exact 1393/2048
+[TF] step 26554 (ema) beta [+0.0294 +0.0969 +0.0787 +0.2738] lam [+0.9404 +0.9420 +0.9396 +0.9386]; last segment delta +1.12e-01 |delta| 8.01e-01 C^ 0.2433 CE 0.2028
+[EVAL] step 27335 acc 0.9321 exact 1379/2048
+[TF] step 27335 (ema) beta [+0.0325 +0.0882 +0.0882 +0.2757] lam [+0.9413 +0.9423 +0.9398 +0.9386]; last segment delta +6.42e-02 |delta| 8.04e-01 C^ 0.2507 CE 0.2046
+[EVAL] step 28116 acc 0.9349 exact 1371/2048
+[TF] step 28116 (ema) beta [+0.0420 +0.0790 +0.0878 +0.2792] lam [+0.9421 +0.9426 +0.9401 +0.9386]; last segment delta -9.26e-03 |delta| 8.12e-01 C^ 0.2721 CE 0.2008
+[EVAL] step 28897 acc 0.9345 exact 1389/2048
+[TF] step 28897 (ema) beta [+0.0538 +0.0829 +0.0955 +0.2958] lam [+0.9429 +0.9429 +0.9404 +0.9386]; last segment delta +5.22e-02 |delta| 8.15e-01 C^ 0.2635 CE 0.1984
+[EVAL] step 29678 acc 0.9326 exact 1382/2048
+[TF] step 29678 (ema) beta [+0.0933 +0.0899 +0.1107 +0.3112] lam [+0.9438 +0.9433 +0.9409 +0.9387]; last segment delta +8.98e-02 |delta| 8.08e-01 C^ 0.2460 CE 0.1987
+[EXTRAP] step 30000: seg4 350/512 -> best 416 (seg 8), error reduction 40.7%
+[EVAL] step 30000 acc 0.9344 exact 1388/2048
+[TF] step 30000 (ema) beta [+0.0991 +0.0923 +0.1243 +0.3153] lam [+0.9442 +0.9435 +0.9410 +0.9387]; last segment delta +4.96e-02 |delta| 8.08e-01 C^ 0.2514 CE 0.1974
